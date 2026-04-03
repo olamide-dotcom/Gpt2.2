@@ -3,7 +3,10 @@ import IdVerificationConsole from "@/components/admin/IdVerificationConsole";
 import JourneyShell from "@/components/JourneyShell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useAccountWorkflow } from "@/hooks/use-account-workflow";
+import { useState } from "react";
 
 const ControlPanelPage = () => {
   const {
@@ -34,6 +37,28 @@ const ControlPanelPage = () => {
     );
   }
 
+  const [passcode, setPasscode] = useState("");
+  const [unlocked, setUnlocked] = useState(() => {
+    try {
+      return sessionStorage.getItem("controlpanel-unlocked") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [passError, setPassError] = useState("");
+
+  const handleUnlock = () => {
+    setPassError("");
+    if (passcode === "0803") {
+      try {
+        sessionStorage.setItem("controlpanel-unlocked", "1");
+      } catch {}
+      setUnlocked(true);
+    } else {
+      setPassError("Incorrect passcode. Try again.");
+    }
+  };
+
   const pendingRequests = snapshot.depositRequests.filter((request) => request.status === "pending_review");
 
   return (
@@ -43,6 +68,31 @@ const ControlPanelPage = () => {
       description="This hidden control route keeps the JSON approval tools away from the user-facing deposit page while still using the same local wallet state."
     >
       <div className="space-y-6">
+        {!unlocked ? (
+          <Card className="border-border/80">
+            <CardHeader>
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge className="bg-gold text-primary-foreground">Passcode required</Badge>
+              </div>
+              <CardTitle className="text-xl">Enter control panel passcode</CardTitle>
+              <CardDescription>Enter the passcode to access the hidden review tools.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="max-w-sm space-y-3">
+                <Input
+                  type="password"
+                  placeholder="Enter passcode"
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                />
+                {passError ? <div className="text-sm text-rose-400">{passError}</div> : null}
+                <div className="flex gap-3">
+                  <Button onClick={handleUnlock}>Unlock</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
         <Card className="border-border/80">
           <CardHeader>
             <div className="flex flex-wrap items-center gap-3">
@@ -61,19 +111,23 @@ const ControlPanelPage = () => {
           </CardContent>
         </Card>
 
-        <ManualDepositConsole
-          isApplyingReview={isApplyingDepositReview}
-          isSavingWalletBalances={isSavingWalletBalances}
-          onApplyManualDepositReview={applyManualDepositReview}
-          onSetWalletBalances={setWalletBalances}
-          snapshot={snapshot}
-        />
+        {unlocked ? (
+          <>
+            <ManualDepositConsole
+              isApplyingReview={isApplyingDepositReview}
+              isSavingWalletBalances={isSavingWalletBalances}
+              onApplyManualDepositReview={applyManualDepositReview}
+              onSetWalletBalances={setWalletBalances}
+              snapshot={snapshot}
+            />
 
-        <IdVerificationConsole
-          snapshot={snapshot}
-          isApplyingIdReview={isApplyingIdReview}
-          onApplyManualIdReview={applyManualIdReview}
-        />
+            <IdVerificationConsole
+              snapshot={snapshot}
+              isApplyingIdReview={isApplyingIdReview}
+              onApplyManualIdReview={applyManualIdReview}
+            />
+          </>
+        ) : null}
       </div>
     </JourneyShell>
   );

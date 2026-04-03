@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "bot": "node server/telegram-bot.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {
