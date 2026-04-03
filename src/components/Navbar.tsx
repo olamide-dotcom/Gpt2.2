@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowRight, Menu, Wallet, X } from "lucide-react";
 
 import { navLinks } from "@/content/site";
+import { useAccountWorkflow } from "@/hooks/use-account-workflow";
 
 interface NavbarProps {
   onOpenDeposit: () => void;
@@ -10,6 +11,10 @@ interface NavbarProps {
 
 const Navbar = ({ onOpenDeposit, onOpenOnboarding }: NavbarProps) => {
   const [open, setOpen] = useState(false);
+  const { snapshot } = useAccountWorkflow();
+  const withdrawableBalance = snapshot
+    ? snapshot.mainWalletBalanceUsd - (snapshot.bonusLocked ? snapshot.bonusUsd ?? 0 : 0)
+    : 0;
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
@@ -32,6 +37,15 @@ const Navbar = ({ onOpenDeposit, onOpenOnboarding }: NavbarProps) => {
           >
             <Wallet size={14} /> Deposit
           </button>
+          {withdrawableBalance > 0 ? (
+            <button
+              type="button"
+              onClick={() => (window.location.href = "/withdraw")}
+              className="inline-flex items-center gap-1 rounded-lg bg-gold px-3 py-2 text-sm font-medium text-foreground"
+            >
+              Withdraw
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onOpenOnboarding}
@@ -75,6 +89,18 @@ const Navbar = ({ onOpenDeposit, onOpenOnboarding }: NavbarProps) => {
           >
             <Wallet size={14} /> Deposit
           </button>
+          {snapshot && snapshot.mainWalletBalanceUsd > 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                window.location.href = "/withdraw";
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2 text-sm font-medium text-foreground"
+            >
+              Withdraw
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => {

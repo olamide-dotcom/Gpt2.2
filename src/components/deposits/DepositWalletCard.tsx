@@ -25,6 +25,9 @@ interface DepositWalletCardProps {
   onSubmitDepositRequest: (input: SubmitDepositRequestInput) => Promise<void>;
   pendingRequestCount: number;
   wallet: DepositWallet;
+  onOpenAddress?: (tokenCode: string) => void;
+  onCloseAddress?: () => void;
+  hidden?: boolean;
 }
 
 type DepositCardPhase = "amount" | "address";
@@ -62,6 +65,9 @@ const DepositWalletCard = ({
   onSubmitDepositRequest,
   pendingRequestCount,
   wallet,
+  onOpenAddress,
+  onCloseAddress,
+  hidden,
 }: DepositWalletCardProps) => {
   const [copied, setCopied] = useState(false);
   const [copiedAt, setCopiedAt] = useState<string | null>(null);
@@ -88,6 +94,7 @@ const DepositWalletCard = ({
     }
 
     setPhase("address");
+    if (onOpenAddress) onOpenAddress(wallet.tokenCode);
   };
 
   const handleCopyAddress = async () => {
@@ -104,6 +111,7 @@ const DepositWalletCard = ({
   const handleBackToAmount = () => {
     setPhase("amount");
     setCopiedAt(null);
+    if (onCloseAddress) onCloseAddress();
   };
 
   const handleSubmitDepositRequest = async () => {
@@ -134,12 +142,14 @@ const DepositWalletCard = ({
     }
   };
 
+  if (hidden) return null;
+
   return (
-    <div className="relative min-h-[560px]" style={{ perspective: "1400px" }}>
+    <div className="relative min-h-[640px] pb-8" style={{ perspective: "1400px" }}>
       <div
         className="relative h-full transition-transform duration-700"
         style={{
-          minHeight: "560px",
+          minHeight: "640px",
           transformStyle: "preserve-3d",
           transform: phase === "address" ? "rotateY(180deg)" : "rotateY(0deg)",
         }}
@@ -151,7 +161,7 @@ const DepositWalletCard = ({
             WebkitBackfaceVisibility: "hidden",
           }}
         >
-          <CardHeader className="space-y-4 pb-4">
+          <CardHeader className="space-y-6 pb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div
@@ -178,13 +188,11 @@ const DepositWalletCard = ({
             </div>
           </CardHeader>
 
-          <CardContent className="space-y-4">
-            <div className="rounded-xl border border-border bg-background/70 p-4">
+          <CardContent className="space-y-6">
+            <div className="rounded-xl border border-border bg-background/70 p-6">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Step 1</div>
-              <div className="mt-2 text-lg font-semibold text-foreground">How much does the user want to deposit?</div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Start with the planned deposit amount. The card will flip and reveal the linked token address next.
-              </p>
+              <div className="mt-2 text-lg font-semibold text-foreground">How much would you like to deposit?</div>
+              <p className="mt-3 text-sm text-muted-foreground">Enter the amount you'd like to deposit. The card will flip to reveal the deposit address.</p>
               <div className="mt-4 flex flex-col gap-3">
                 <Input
                   type="number"
@@ -202,7 +210,7 @@ const DepositWalletCard = ({
             </div>
 
             {latestRequest ? (
-              <div className="rounded-xl border border-border bg-background/70 p-4">
+              <div className="rounded-xl border border-border bg-background/70 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="text-xs uppercase tracking-wide text-muted-foreground">Latest request</div>
@@ -223,7 +231,7 @@ const DepositWalletCard = ({
               </div>
             ) : null}
 
-            <div className="rounded-xl border border-border bg-background/70 p-4">
+            <div className="rounded-xl border border-border bg-background/70 p-6">
               <div className="flex items-start gap-3">
                 <ShieldCheck className="mt-0.5 text-gold" size={16} />
                 <div className="space-y-2 text-sm text-muted-foreground">
@@ -244,7 +252,7 @@ const DepositWalletCard = ({
             WebkitBackfaceVisibility: "hidden",
           }}
         >
-          <CardHeader className="space-y-4 pb-4">
+          <CardHeader className="space-y-6 pb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div
@@ -270,56 +278,54 @@ const DepositWalletCard = ({
             </div>
           </CardHeader>
 
-          <CardContent className="space-y-4">
-            <div className="rounded-xl border border-border bg-background/70 p-4">
+          <CardContent className="space-y-6">
+            <div className="rounded-xl border border-border bg-background/70 p-6">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Step 2</div>
               <div className="mt-2 text-lg font-semibold text-foreground">Copy the linked deposit address</div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                After the address is copied, the user can confirm they have sent the deposit. The request then moves to
-                the local review queue.
-              </p>
+              <p className="mt-3 text-sm text-muted-foreground">After you copy the address, confirm that you've sent the deposit. The request will move to review.</p>
             </div>
 
-            <div className="rounded-xl border border-border bg-background/70 p-4">
+            <div className="rounded-xl border border-border bg-background/70 p-6">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Deposit address</div>
               <div className="mt-2 font-mono text-sm text-foreground" title={wallet.address}>
                 {truncateAddress(wallet.address, 10, 10)}
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                The UI keeps the display short, but the full address is what gets copied into the clipboard.
-              </p>
+              <p className="mt-2 text-xs text-muted-foreground">The full address is copied to your clipboard when you press Copy.</p>
             </div>
 
-            <div className="rounded-xl border border-border bg-background/70 p-4">
+            <div className="rounded-xl border border-border bg-background/70 p-6">
               <div className="flex items-start gap-3">
                 <ShieldCheck className="mt-0.5 text-gold" size={16} />
                 <div className="space-y-2 text-sm text-muted-foreground">
                   <p>Planned deposit amount: <span className="font-semibold text-foreground">{hasValidAmount ? formatUsdCurrency(amountUsd) : "Not set"}</span></p>
                   <p>Copied at: <span className="font-medium text-foreground">{formatWorkflowTimestamp(copiedAt)}</span></p>
-                  <p>Once the user clicks &quot;I&apos;ve sent now&quot;, the request moves into the local review queue for manual approval.</p>
+                  <p>When you click "I've Sent", your request moves into the review queue for approval.</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <Button type="button" onClick={handleCopyAddress}>
+            <div className="flex flex-col sm:flex-row gap-3 relative z-10">
+              <Button className="w-full sm:w-auto" type="button" onClick={handleCopyAddress}>
                 {copied ? <Check size={16} /> : <Copy size={16} />}
-                {copied ? "Copied!" : "Copy Address"}
+                {copied ? "Copied!" : "Copy address"}
               </Button>
               <Button
+                className="w-full sm:w-auto"
                 type="button"
                 variant="outline"
                 onClick={() => void handleSubmitDepositRequest()}
                 disabled={!copiedAt || isSubmittingRequest}
               >
                 <Send size={16} />
-                {isSubmittingRequest ? "Sending..." : "I've Sent Now"}
+                {isSubmittingRequest ? "Sending..." : "I've Sent"}
               </Button>
-              <DepositQrPlaceholderDialog
-                address={wallet.address}
-                networkLabel={wallet.networkLabel}
-                tokenName={wallet.tokenName}
-              />
+              <div className="w-full sm:w-auto">
+                <DepositQrPlaceholderDialog
+                  address={wallet.address}
+                  networkLabel={wallet.networkLabel}
+                  tokenName={wallet.tokenName}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

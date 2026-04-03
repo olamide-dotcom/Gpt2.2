@@ -109,7 +109,7 @@ const BotSetupDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl border-border bg-card">
+      <DialogContent className="w-full sm:max-w-2xl border-border bg-card">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bot size={18} className="text-gold" />
@@ -279,7 +279,7 @@ const BotSetupDialog = ({
           ) : null}
 
           {step === "settings" ? (
-            <Button type="button" disabled={!settingsValid || availableBalanceUsd <= 0} onClick={() => setStep("allocation")}>
+            <Button type="button" disabled={!settingsValid} onClick={() => setStep("allocation")}>
               Continue
               <ArrowRight size={16} />
             </Button>

@@ -1,4 +1,5 @@
 import ManualDepositConsole from "@/components/deposits/ManualDepositConsole";
+import IdVerificationConsole from "@/components/admin/IdVerificationConsole";
 import JourneyShell from "@/components/JourneyShell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +13,8 @@ const ControlPanelPage = () => {
     isSavingWalletBalances,
     setWalletBalances,
     snapshot,
+    applyManualIdReview,
+    isApplyingIdReview,
   } = useAccountWorkflow();
 
   if (isLoading || !snapshot) {
@@ -64,6 +67,12 @@ const ControlPanelPage = () => {
           onApplyManualDepositReview={applyManualDepositReview}
           onSetWalletBalances={setWalletBalances}
           snapshot={snapshot}
+        />
+
+        <IdVerificationConsole
+          snapshot={snapshot}
+          isApplyingIdReview={isApplyingIdReview}
+          onApplyManualIdReview={applyManualIdReview}
         />
       </div>
     </JourneyShell>

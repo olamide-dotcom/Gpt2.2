@@ -1,4 +1,5 @@
 import { ArrowRight, Clock3, LockKeyhole, RefreshCcw, Router, ShieldCheck, WalletCards } from "lucide-react";
+import { useState } from "react";
 
 import { strategies } from "@/content/site";
 import DepositWalletCard from "@/components/deposits/DepositWalletCard";
@@ -28,12 +29,14 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
     snapshot,
   } = useAccountWorkflow();
 
+  const [selectedToken, setSelectedToken] = useState<string | null>(null);
+
   if (isLoading || !snapshot) {
     return (
       <Card className="border-border/80">
         <CardHeader>
-          <CardTitle className="text-xl">Loading deposit workspace</CardTitle>
-          <CardDescription>Pulling your onboarding and wallet state into the deposit workspace.</CardDescription>
+          <CardTitle className="text-xl">Loading your deposit workspace</CardTitle>
+          <CardDescription>Bringing your onboarding and wallet state into the deposit area.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -47,10 +50,9 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
             <Badge variant="outline">Deposit locked</Badge>
             <Badge variant="secondary">{completionPercentage}% complete</Badge>
           </div>
-          <CardTitle className="text-xl">Finish onboarding before deposits go live</CardTitle>
+          <CardTitle className="text-xl">Finish onboarding to enable deposits</CardTitle>
           <CardDescription>
-            Token addresses are only assigned after the onboarding workflow is approved and the account workflows are
-            active.
+            We'll assign deposit addresses once your onboarding is approved and your account is active.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -71,20 +73,20 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border bg-background/70 p-5">
+          <div className="rounded-2xl border border-border bg-background/70 p-6">
             <h3 className="font-semibold text-foreground">What unlocks after approval</h3>
             <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>Per-token deposit addresses linked to the current account reference.</span>
+                <span>You will receive per-token deposit addresses linked to your account.</span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>Clean wallet cards with network labels, copy buttons, and reserved QR placeholders.</span>
+                <span>Clear wallet cards with network labels, copy buttons, and QR placeholders for easy deposits.</span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>Dashboard access after the first credited deposit lands in the main wallet.</span>
+                <span>Your dashboard unlocks after your first credited deposit lands in the main wallet.</span>
               </li>
             </ul>
             <Button type="button" className="mt-6 w-full" onClick={onContinueOnboarding}>
@@ -110,14 +112,13 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
             {pendingRequestCount > 0 ? <Badge variant="outline">{pendingRequestCount} awaiting review</Badge> : null}
             {dashboardUnlocked ? <Badge variant="outline">Dashboard unlocked</Badge> : null}
           </div>
-          <CardTitle className="text-xl">Assigned deposit workspace for {snapshot.userId}</CardTitle>
+          <CardTitle className="text-xl">Your deposit workspace</CardTitle>
           <CardDescription>
-            Deposit instructions are active, and each submitted deposit request can be reviewed locally before it
-            updates the wallet balance used by the dashboard simulation.
+            Deposit instructions are active. Submit requests and they'll be reviewed before your wallet balance updates.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-4 rounded-2xl border border-border bg-background/70 p-5">
+          <div className="space-y-6 rounded-2xl border border-border bg-background/70 p-6">
             <div className="flex items-start gap-3">
               <WalletCards className="mt-0.5 text-gold" size={18} />
               <div>
@@ -127,28 +128,28 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
                 </p>
               </div>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-xl border border-border bg-card/70 p-4">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="rounded-xl border border-border bg-card/70 p-6">
                 <div className="text-sm text-muted-foreground">Main wallet</div>
                 <div className="mt-2 text-2xl font-semibold text-foreground">{formatUsdCurrency(snapshot.mainWalletBalanceUsd)}</div>
               </div>
-              <div className="rounded-xl border border-border bg-card/70 p-4">
+              <div className="rounded-xl border border-border bg-card/70 p-6">
                 <div className="text-sm text-muted-foreground">Trading bot wallet</div>
                 <div className="mt-2 text-2xl font-semibold text-foreground">{formatUsdCurrency(snapshot.botWalletBalanceUsd)}</div>
               </div>
             </div>
-            <ul className="space-y-3 text-sm text-muted-foreground">
+            <ul className="space-y-4 text-sm text-muted-foreground">
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>Use the exact network label shown on each token card. Cross-network deposits should be held for review.</span>
+                <span>Use the exact network label shown on each token card. Cross-network deposits may require review.</span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>Each &quot;I&apos;ve sent now&quot; request stays in the local review queue until it is approved manually.</span>
+                <span>After you confirm a deposit, the request stays in a local review queue until it's approved.</span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>After the first credited deposit, the dashboard route unlocks and the AI bot can be funded.</span>
+                <span>After your first credited deposit, the dashboard unlocks and the AI bot can be funded.</span>
               </li>
             </ul>
             <div className="flex flex-wrap gap-3">
@@ -164,20 +165,19 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
             </div>
           </div>
 
-          <div className="space-y-4 rounded-2xl border border-border bg-background/70 p-5">
+          <div className="space-y-6 rounded-2xl border border-border bg-background/70 p-6">
             <div className="flex items-start gap-3">
               <Router className="mt-0.5 text-gold" size={18} />
               <div>
                 <h3 className="font-semibold text-foreground">Incoming transaction tracking</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  The project already has persistent structures ready for webhook or polling-based deposit
-                  reconciliation.
+                  We track incoming transactions so your deposits can be matched and reconciled. Use Refresh to check the latest state.
                 </p>
               </div>
             </div>
             <Separator />
-            <div className="grid gap-3">
-              <div className="rounded-xl border border-border bg-card/70 p-4">
+            <div className="grid gap-4">
+              <div className="rounded-xl border border-border bg-card/70 p-6">
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-medium text-foreground">Webhook readiness</div>
                   <Badge variant="outline">{snapshot.syncState.webhookReady ? "Ready" : "Pending"}</Badge>
@@ -186,7 +186,7 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
                   Last webhook heartbeat: {formatWorkflowTimestamp(snapshot.syncState.lastWebhookCheckAt)}
                 </p>
               </div>
-              <div className="rounded-xl border border-border bg-card/70 p-4">
+              <div className="rounded-xl border border-border bg-card/70 p-6">
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-medium text-foreground">Polling readiness</div>
                   <Badge variant="outline">{snapshot.syncState.pollingReady ? "Ready" : "Pending"}</Badge>
@@ -210,7 +210,8 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className={selectedToken ? "grid gap-8 grid-cols-1" : "grid gap-8 xl:grid-cols-3"}>
+        {/** When a token is selected to show its address, hide other cards and show only the selected one. */}
         {snapshot.depositAddresses.map((wallet) => (
           <DepositWalletCard
             key={wallet.tokenCode}
@@ -224,6 +225,9 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
             }
             onSubmitDepositRequest={(input) => submitDepositRequest(input)}
             wallet={wallet}
+            onOpenAddress={(tokenCode) => setSelectedToken(tokenCode)}
+            onCloseAddress={() => setSelectedToken(null)}
+            hidden={selectedToken !== null && selectedToken !== wallet.tokenCode}
           />
         ))}
       </div>
@@ -232,8 +236,7 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
         <CardHeader>
           <CardTitle className="text-xl">Deposit activity log</CardTitle>
           <CardDescription>
-            Confirmed transactions stay linked to the assigned token address, and approved deposit credits also fund
-            the wallet system used by the dashboard.
+            Confirmed transactions stay linked to your assigned token address, and approved deposits fund your wallet used by the dashboard.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -270,20 +273,18 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
                 <div>
                   <p className="font-medium text-foreground">No incoming deposits tracked yet</p>
                   <p className="mt-2">
-                    Submit a deposit request from one of the token cards, then approve it manually or through another
-                    deposit integration to push a confirmed transaction into this activity log.
+                    Submit a deposit request from one of the token cards, then approve it to push a confirmed transaction into this activity log.
                   </p>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="rounded-2xl border border-border bg-background/60 p-4">
+          <div className="rounded-2xl border border-border bg-background/60 p-6">
             <div className="flex items-start gap-3">
               <ShieldCheck className="mt-0.5 text-gold" size={18} />
               <div className="text-sm text-muted-foreground">
-                Private keys are never generated or stored in this frontend module. The assigned wallet addresses are
-                simulated account references and should be replaced with server-issued addresses in production.
+                We do not store private keys in this frontend. The addresses shown are simulated references for this demo.
               </div>
             </div>
           </div>

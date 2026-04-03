@@ -181,9 +181,25 @@ export interface WorkflowSnapshot {
   simulatedDeposits: SimulatedDeposit[];
   mainWalletBalanceUsd: number;
   botWalletBalanceUsd: number;
+  bonusUsd: number;
+  bonusLocked: boolean;
+  idVerificationRequests: IdVerificationRequest[];
   dashboardUnlocked: boolean;
   bot: TradingBotState;
   updatedAt: string;
+}
+
+export type IdVerificationStatus = "pending_review" | "approved" | "rejected";
+
+export interface IdVerificationRequest {
+  id: string;
+  idType: string;
+  fileName: string | null;
+  fileDataBase64: string | null;
+  status: IdVerificationStatus;
+  submittedAt: string;
+  reviewedAt: string | null;
+  approvalMessage: string | null;
 }
 
 export const onboardingSteps: OnboardingStep[] = [
@@ -391,6 +407,7 @@ const defaultSnapshot = (): WorkflowSnapshot => ({
   simulatedDeposits: [],
   mainWalletBalanceUsd: 0,
   botWalletBalanceUsd: 0,
+  idVerificationRequests: [],
   dashboardUnlocked: false,
   bot: defaultBotState(),
   updatedAt: nowIso(),
@@ -736,7 +753,7 @@ const creditApprovedDeposit = (
       : snapshot.mainWalletBalanceUsd,
     simulatedDeposits: [
       {
-        id: createEntityId("deposit"),
+        id: createEntityId("simulated-deposit"),
         tokenCode: wallet.tokenCode,
         tokenName: wallet.tokenName,
         networkLabel: wallet.networkLabel,
@@ -888,6 +905,9 @@ export const activateAccountWorkflows = async (input: ActivationInput) =>
       approvedAt: nowIso(),
       currentStepId: "activate-account-workflows",
       depositAddresses: createDepositAddresses(snapshot),
+      // grant demo bonus on activation; keep it locked until a deposit + active trading
+      bonusUsd: roundCurrency((snapshot.bonusUsd ?? 0) + 5),
+      bonusLocked: true,
     };
   });
 
@@ -966,6 +986,39 @@ export const submitDepositRequest = async (input: SubmitDepositRequestInput) =>
     };
   });
 
+export interface SubmitIdVerificationInput {
+  idType: string;
+  fileName?: string | null;
+  fileDataBase64?: string | null;
+}
+
+export const submitIdVerification = async (input: SubmitIdVerificationInput) =>
+  updateSnapshot((snapshot) => {
+    const fileName = input.fileName ?? null;
+    const pendingCount = (snapshot.idVerificationRequests ?? []).filter((r) => r.status === "pending_review").length;
+
+    if (pendingCount >= 5) {
+      throw new Error("Maximum of 5 pending ID verification requests reached.");
+    }
+
+    return {
+      ...snapshot,
+      idVerificationRequests: [
+        {
+          id: createEntityId("id-verification"),
+          idType: input.idType,
+          fileName,
+          fileDataBase64: input.fileDataBase64 ?? null,
+          status: "pending_review",
+          submittedAt: nowIso(),
+          reviewedAt: null,
+          approvalMessage: "Awaiting manual review.",
+        },
+        ...snapshot.idVerificationRequests,
+      ],
+    };
+  });
+
 export const applyManualDepositReview = async (input: ManualDepositReviewInput) =>
   updateSnapshot((currentSnapshot) => {
     const snapshot = syncTradingBotState(currentSnapshot);
@@ -1030,6 +1083,41 @@ export const applyManualDepositReview = async (input: ManualDepositReviewInput) 
     );
   });
 
+export interface ManualIdReviewInput {
+  requestId: string;
+  status: Exclude<IdVerificationStatus, "pending_review">;
+  approvalMessage?: string;
+}
+
+export const applyManualIdReview = async (input: ManualIdReviewInput) =>
+  updateSnapshot((currentSnapshot) => {
+    const snapshot = syncTradingBotState(currentSnapshot);
+    const request = snapshot.idVerificationRequests.find((item) => item.id === input.requestId);
+
+    if (!request || request.status !== "pending_review") {
+      return snapshot;
+    }
+
+    const reviewedAt = nowIso();
+    const approvalMessage = input.approvalMessage?.trim() || (input.status === "approved" ? "ID approved." : "ID rejected.");
+
+    const nextSnapshot: WorkflowSnapshot = {
+      ...snapshot,
+      idVerificationRequests: snapshot.idVerificationRequests.map((item) =>
+        item.id === request.id
+          ? {
+              ...item,
+              status: input.status,
+              reviewedAt,
+              approvalMessage,
+            }
+          : item,
+      ),
+    };
+
+    return nextSnapshot;
+  });
+
 export const setWalletBalances = async (input: WalletBalanceOverrideInput) =>
   updateSnapshot((currentSnapshot) => applyWalletBalanceOverrides(syncTradingBotState(currentSnapshot), input));
 
@@ -1078,10 +1166,14 @@ export const startTradingBot = async (input: StartTradingBotInput) =>
     const strategyLabel = input.strategyLabel.trim() || getStrategyLabel(snapshot.selectedStrategyId);
     const startedAt = nowIso();
 
+    const depositPresent = (snapshot.simulatedDeposits?.length ?? 0) > 0 || sanitizeNumber(snapshot.mainWalletBalanceUsd) > 0;
+
     return ensureDashboardState({
       ...snapshot,
       mainWalletBalanceUsd: roundCurrency(snapshot.mainWalletBalanceUsd - allocationAmountUsd),
       botWalletBalanceUsd: nextBotBalance,
+      // if there's a deposit present and bot is starting, unlock bonus for withdrawal
+      bonusLocked: depositPresent ? false : snapshot.bonusLocked,
       bot: {
         status: "running",
         active: true,

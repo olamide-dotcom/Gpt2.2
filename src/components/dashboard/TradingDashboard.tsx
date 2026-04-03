@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import BotSetupDialog from "@/components/dashboard/BotSetupDialog";
+import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +40,7 @@ const TradingDashboard = () => {
   } = useAccountWorkflow();
 
   const [botModalOpen, setBotModalOpen] = useState(false);
+  const navigate = useNavigate();
 
   const defaultStrategyLabel = useMemo(() => snapshot?.bot.tradingSettings?.strategyLabel ?? "Hybrid Insider Flow", [snapshot]);
 
@@ -111,8 +113,29 @@ const TradingDashboard = () => {
     }
   };
 
+  const withdrawable = snapshot.mainWalletBalanceUsd - (snapshot.bonusLocked ? snapshot.bonusUsd ?? 0 : 0);
+
   return (
     <div className="space-y-6">
+      {withdrawable > 0 ? (
+        <div className="rounded-2xl border border-gold/30 bg-gold/10 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-semibold text-foreground">You have withdrawable balance</div>
+              <div className="text-sm text-muted-foreground">Withdraw funds back to your external wallet.</div>
+            </div>
+            <div>
+              <button
+                type="button"
+                onClick={() => navigate("/withdraw")}
+                className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2 text-sm font-medium text-foreground"
+              >
+                Withdraw
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-6 xl:grid-cols-3">
         <Card className="border-border/80">
           <CardHeader>
@@ -120,7 +143,7 @@ const TradingDashboard = () => {
               <Wallet className="text-gold" size={20} />
               <div>
                 <CardTitle className="text-xl">Main Wallet</CardTitle>
-                <CardDescription>Deposits land here before any bot allocation happens.</CardDescription>
+                <CardDescription>Your deposits appear here before any funds are allocated to the bot.</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -299,12 +322,12 @@ const TradingDashboard = () => {
         <Card className="border-border/80">
           <CardHeader>
             <CardTitle className="text-xl">Recent Deposits</CardTitle>
-            <CardDescription>The dashboard stays tied to the same funding history created on the deposit page.</CardDescription>
+            <CardDescription>This view shows the same funding history from your deposit page.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {snapshot.simulatedDeposits.length > 0 ? (
               snapshot.simulatedDeposits.slice(0, 4).map((deposit) => (
-                <div key={deposit.id} className="rounded-xl border border-border bg-background/70 p-4">
+                <div key={deposit.id} className="rounded-xl border border-border bg-background/70 p-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{deposit.tokenCode}</Badge>
@@ -312,7 +335,7 @@ const TradingDashboard = () => {
                     </div>
                     <div className="font-semibold text-foreground">{formatUsdCurrency(deposit.amountUsd)}</div>
                   </div>
-                  <div className="mt-3 text-sm text-muted-foreground">
+                  <div className="mt-4 text-sm text-muted-foreground">
                     Credited {formatWorkflowTimestamp(deposit.creditedAt)}
                   </div>
                 </div>

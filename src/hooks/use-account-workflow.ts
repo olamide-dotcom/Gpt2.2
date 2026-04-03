@@ -11,6 +11,7 @@ import {
   isDepositUnlocked,
   recordIncomingDeposit,
   refreshDepositTracking,
+  submitIdVerification,
   saveIdentityChecks,
   saveReviewAccessRequirements,
   saveStrategyTrack,
@@ -22,6 +23,7 @@ import {
   submitDepositRequest,
   syncTradingBotSimulation,
   withdrawBotBalanceToMainWallet,
+  applyManualIdReview,
 } from "@/lib/account-workflow";
 
 const workflowQueryKey = ["account-workflow"];
@@ -76,6 +78,11 @@ export const useAccountWorkflow = () => {
     onSuccess: syncSnapshot,
   });
 
+  const submitIdVerificationMutation = useMutation({
+    mutationFn: submitIdVerification,
+    onSuccess: syncSnapshot,
+  });
+
   const submitDepositRequestMutation = useMutation({
     mutationFn: submitDepositRequest,
     onSuccess: syncSnapshot,
@@ -83,6 +90,11 @@ export const useAccountWorkflow = () => {
 
   const applyManualDepositReviewMutation = useMutation({
     mutationFn: applyManualDepositReview,
+    onSuccess: syncSnapshot,
+  });
+
+  const applyManualIdReviewMutation = useMutation({
+    mutationFn: applyManualIdReview,
     onSuccess: syncSnapshot,
   });
 
@@ -133,6 +145,8 @@ export const useAccountWorkflow = () => {
     recordIncomingDeposit: recordIncomingDepositMutation.mutateAsync,
     submitDepositRequest: submitDepositRequestMutation.mutateAsync,
     applyManualDepositReview: applyManualDepositReviewMutation.mutateAsync,
+    submitIdVerification: submitIdVerificationMutation.mutateAsync,
+    applyManualIdReview: applyManualIdReviewMutation.mutateAsync,
     setWalletBalances: walletBalanceMutation.mutateAsync,
     simulateDeposit: simulateDepositMutation.mutateAsync,
     startTradingBot: startTradingBotMutation.mutateAsync,
@@ -146,7 +160,9 @@ export const useAccountWorkflow = () => {
     isChangingStep: currentStepMutation.isPending,
     isRefreshingTracking: refreshTrackingMutation.isPending,
     isSubmittingDepositRequest: submitDepositRequestMutation.isPending,
+    isSubmittingIdVerification: submitIdVerificationMutation.isPending,
     isApplyingDepositReview: applyManualDepositReviewMutation.isPending,
+    isApplyingIdReview: applyManualIdReviewMutation.isPending,
     isSavingWalletBalances: walletBalanceMutation.isPending,
     isSimulatingDeposit: simulateDepositMutation.isPending,
     isStartingTradingBot: startTradingBotMutation.isPending,
