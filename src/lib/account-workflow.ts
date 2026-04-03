@@ -1,6 +1,6 @@
 import { strategies, type StrategyId } from "@/content/site";
 
-const STORAGE_KEY = "mytrustcapital.onboarding-deposit.v2";
+const STORAGE_KEY = "gpt2.tradebot.onboarding-deposit.v2";
 const BOT_TICK_INTERVAL_MS = 8_000;
 const MAX_SYNC_TICKS = 240;
 export const MAX_BOT_GAIN_PERCENT = 30;

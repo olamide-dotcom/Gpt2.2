@@ -33,8 +33,8 @@ const JourneyShell = ({ title, description, stage, children }: JourneyShellProps
       <header className="rounded-3xl border border-border bg-card/80 p-6 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link to="/" className="text-xl font-bold">
-            <span className="text-gold">mytrust</span>
-            <span className="text-foreground">capital</span>
+            <span className="text-gold">gpt.2</span>
+            <span className="text-foreground"> TradeBot</span>
           </Link>
           <Badge variant="secondary" className="border border-gold/30 bg-secondary text-gold">
             Crypto Trading + Insider Bot Flow

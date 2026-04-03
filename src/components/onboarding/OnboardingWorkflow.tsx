@@ -239,12 +239,12 @@ const OnboardingWorkflow = ({
           <div className="flex flex-wrap items-center gap-3">
             <Badge className="bg-gold text-primary-foreground">Onboarding workflow</Badge>
             <Badge variant="secondary">{completionPercentage}% complete</Badge>
-            {depositUnlocked ? <Badge variant="outline">Deposit unlocked</Badge> : null}
+            {depositUnlocked ? <Badge variant="outline">Continue To Deposit </Badge> : null}
           </div>
-          <CardTitle className="text-xl">Progress persists for account {snapshot.userId}</CardTitle>
+          <CardTitle className="text-xl">Progress is saved {snapshot.userId}</CardTitle>
           <CardDescription>
-            Users can move between completed steps, save crypto KYC and wallet-routing progress on this device, and
-            unlock deposits once activation is approved.
+            You can move between completed steps, save crypto KYC, and
+            continue to deposits once onboarding is approved.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -262,7 +262,7 @@ const OnboardingWorkflow = ({
       <div className="grid gap-6 lg:grid-cols-[0.88fr_1.12fr]">
         <Card className="border-border/80">
         <CardHeader>
-          <CardTitle className="text-xl">Workflow steps</CardTitle>
+          <CardTitle className="text-xl">Workflow </CardTitle>
           <CardDescription>
             Completed steps stay open, and the next crypto onboarding step becomes available as soon as the current one
             is saved.
@@ -318,11 +318,9 @@ const OnboardingWorkflow = ({
                   <BadgeCheck className="mt-0.5 text-gold" size={18} />
                   <div>
                     <div className="font-semibold text-foreground">Deposit access approved</div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      The deposit workspace is now available with token addresses, copy tools, and QR placeholders.
-                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">You can now proceed to the deposit workspace.</p>
                     <Button type="button" className="mt-4" onClick={onOpenFunding}>
-                      Open deposit page
+                      Deposit
                     </Button>
                   </div>
                 </div>
@@ -348,7 +346,7 @@ const OnboardingWorkflow = ({
               <form className="space-y-5" onSubmit={handleReviewSubmit}>
                 <div className="grid gap-5 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="residenceCountry">Operating country / tax residence</Label>
+                    <Label htmlFor="residenceCountry">Operating country </Label>
                     <Input
                       id="residenceCountry"
                       value={reviewRequirements.residenceCountry}
@@ -358,11 +356,11 @@ const OnboardingWorkflow = ({
                           residenceCountry: event.target.value,
                         }))
                       }
-                      placeholder="Nigeria"
+                      placeholder="United States"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Crypto account profile</Label>
+                    <Label>Crypto Profile</Label>
                     <Select
                       value={reviewRequirements.investorProfile}
                       onValueChange={(value) =>
@@ -377,9 +375,9 @@ const OnboardingWorkflow = ({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="retail">Spot / swing trader</SelectItem>
-                        <SelectItem value="crypto-desk">OTC / prop desk</SelectItem>
-                        <SelectItem value="treasury">Stablecoin treasury</SelectItem>
-                        <SelectItem value="signal-partner">Signal copy-trading partner</SelectItem>
+                        <SelectItem value="crypto-desk">OTC / prop </SelectItem>
+                        <SelectItem value="treasury">Stablecoin </SelectItem>
+                        <SelectItem value="signal-partner">Signal copy-trading </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -424,8 +422,8 @@ const OnboardingWorkflow = ({
                         }
                       />
                       <Label htmlFor="ack-eligibility" className="leading-6">
-                        I confirm the account may be asked for source-of-funds, exchange history, or chain-screening
-                        details before large crypto deposits are cleared.
+                        I confirm that Users must allocate a minimum trading balance to activate the AI trading bot. Funds remaining in the user's wallet 
+            
                       </Label>
                     </div>
                     <div className="flex items-start gap-3">
@@ -475,7 +473,7 @@ const OnboardingWorkflow = ({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Primary crypto ops email</Label>
+                    <Label htmlFor="email">Mail</Label>
                     <Input
                       id="email"
                       type="email"
@@ -486,13 +484,13 @@ const OnboardingWorkflow = ({
                           email: event.target.value,
                         }))
                       }
-                      placeholder="ada@example.com"
+                      placeholder="arnold@example.com"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="country">Issuing country of KYC document</Label>
+                    <Label htmlFor="country">Select a wallet </Label>
                     <Input
-                      id="country"
+                      id="wallet"
                       value={identityChecks.country}
                       onChange={(event) =>
                         setIdentityChecks((current) => ({
@@ -500,7 +498,7 @@ const OnboardingWorkflow = ({
                           country: event.target.value,
                         }))
                       }
-                      placeholder="Nigeria"
+                      placeholder="Phantom, MetaMask, Coinbase Wallet......."
                     />
                   </div>
                   <div className="space-y-2">
@@ -538,7 +536,7 @@ const OnboardingWorkflow = ({
                         notes: event.target.value,
                       }))
                     }
-                    placeholder="Optional notes for source-of-funds review, exchange UID, preferred settlement wallet, or OTC handling."
+                    placeholder="Funds review, exchange UID, preferred settlement wallet, or OTC handling."
                   />
                 </div>
 
@@ -617,9 +615,9 @@ const OnboardingWorkflow = ({
                         <SelectValue placeholder="Choose the main ops route" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="email">Secure email updates</SelectItem>
-                        <SelectItem value="relationship-manager">Relationship manager / OTC desk</SelectItem>
-                        <SelectItem value="ops-desk">Operations desk / treasury</SelectItem>
+                        <SelectItem value="email">Others</SelectItem>
+                        <SelectItem value="relationship-manager">Cwc manager</SelectItem>
+                        <SelectItem value="ops-desk">Operations desk</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -635,7 +633,7 @@ const OnboardingWorkflow = ({
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Choose a crypto market cadence" />
+                        <SelectValue placeholder="Choose a security review checkup" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="weekly">Weekly</SelectItem>
@@ -659,8 +657,8 @@ const OnboardingWorkflow = ({
                       }
                       />
                       <Label htmlFor="alertsEnabled" className="leading-6">
-                        Enable wallet and execution alerts so on-chain deposits, confirmations, and strategy changes
-                        surface quickly.
+                        Enable wallet and execution alerts so on-chain deposits, confirmations, and strategy 
+                        is initialized.
                       </Label>
                     </div>
                     <div className="flex items-start gap-3">
@@ -675,9 +673,8 @@ const OnboardingWorkflow = ({
                       }
                       />
                       <Label htmlFor="fundingAcknowledgement" className="leading-6">
-                        I understand this demo adapter approves the crypto account locally and unlocks deposit wallets
-                        after submission. Production should replace this with a real wallet-screening and treasury
-                        approval flow.
+                        I understand this Dapp approves the crypto account locally and unlocks deposit wallets
+                        after submission. Wallet-screening and treasury management approval flow.
                       </Label>
                     </div>
                 </div>
@@ -687,10 +684,10 @@ const OnboardingWorkflow = ({
                     <div className="flex items-start gap-3">
                       <BadgeCheck className="mt-0.5 text-gold" size={18} />
                       <div>
-                        <div className="font-semibold text-foreground">Account workflows are active</div>
+                        <div className="font-semibold text-foreground">Account active</div>
                         <p className="mt-1 text-sm text-muted-foreground">
                           Approval completed {formatWorkflowTimestamp(snapshot.approvedAt)}. Deposit addresses are ready
-                          on the next page.
+                          .
                         </p>
                       </div>
                     </div>
@@ -704,7 +701,7 @@ const OnboardingWorkflow = ({
                   </Button>
                   {depositUnlocked ? (
                     <Button type="button" variant="outline" onClick={onOpenFunding}>
-                      Open deposit page
+                      Continue to deposit 
                     </Button>
                   ) : null}
                 </div>
@@ -741,7 +738,7 @@ const OnboardingWorkflow = ({
                 ) : null}
                 {depositUnlocked ? (
                   <Button type="button" onClick={onOpenFunding}>
-                    Go to deposit page
+                    Continue to deposit 
                     <ArrowRight size={16} />
                   </Button>
                 ) : null}

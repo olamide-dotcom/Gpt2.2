@@ -8,7 +8,7 @@ const Footer = ({ onOpenPrivacy, onOpenTerms, onOpenSupport }: FooterProps) => (
   <footer className="border-t border-border py-8 px-4">
     <div className="container mx-auto flex flex-col items-center justify-between gap-4 text-sm text-muted-foreground md:flex-row">
       <span>
-        Copyright {new Date().getFullYear()} <span className="text-gold">mytrust</span>capital. All rights reserved.
+        Copyright {new Date().getFullYear()} <span className="text-gold">gpt.2</span> TradeBot. All rights reserved.
       </span>
       <div className="flex gap-6">
         <button type="button" onClick={onOpenPrivacy} className="transition-colors hover:text-foreground">

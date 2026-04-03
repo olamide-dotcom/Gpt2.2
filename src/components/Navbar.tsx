@@ -15,8 +15,8 @@ const Navbar = ({ onOpenDeposit, onOpenOnboarding }: NavbarProps) => {
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <a href="#home" className="text-xl font-bold">
-          <span className="text-gold">mytrust</span>
-          <span className="text-foreground">capital</span>
+          <span className="text-gold">gpt.2</span>
+          <span className="text-foreground"> TradeBot</span>
         </a>
 
         <div className="hidden items-center gap-8 md:flex">
