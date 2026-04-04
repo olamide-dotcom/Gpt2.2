@@ -19,6 +19,15 @@ const ControlPanelPage = () => {
     applyManualIdReview,
     isApplyingIdReview,
   } = useAccountWorkflow();
+  const [passcode, setPasscode] = useState("");
+  const [unlocked, setUnlocked] = useState(() => {
+    try {
+      return sessionStorage.getItem("controlpanel-unlocked") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [passError, setPassError] = useState("");
 
   if (isLoading || !snapshot) {
     return (
@@ -36,16 +45,6 @@ const ControlPanelPage = () => {
       </JourneyShell>
     );
   }
-
-  const [passcode, setPasscode] = useState("");
-  const [unlocked, setUnlocked] = useState(() => {
-    try {
-      return sessionStorage.getItem("controlpanel-unlocked") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const [passError, setPassError] = useState("");
 
   const handleUnlock = () => {
     setPassError("");
