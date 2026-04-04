@@ -90,7 +90,33 @@ export const useAccountWorkflow = () => {
 
   const applyManualDepositReviewMutation = useMutation({
     mutationFn: applyManualDepositReview,
-    onSuccess: syncSnapshot,
+    onSuccess: (data) => {
+      syncSnapshot(data);
+
+      try {
+        const now = Date.now();
+        const recentlyReviewed = (data.depositRequests || []).filter((r: any) => {
+          if (!r.reviewedAt) return false;
+          const reviewedMs = new Date(r.reviewedAt).getTime();
+          return now - reviewedMs < 5000; // reviewed in last ~5s
+        });
+
+        for (const req of recentlyReviewed) {
+          if (!req.submittedByTelegramId) continue;
+          const chatId = req.submittedByTelegramId;
+          const text = `Your deposit request *${req.id}* for *${req.requestedAmountUsd.toFixed(2)} USD* was *${req.status}*.
+${req.approvalMessage ? '\nMessage: ' + req.approvalMessage : ''}`;
+
+          void fetch('/api/notify-telegram', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId, text }),
+          }).catch((e) => console.error('notify-telegram failed', e));
+        }
+      } catch (err) {
+        console.error('Error sending telegram notifications', err);
+      }
+    },
   });
 
   const applyManualIdReviewMutation = useMutation({

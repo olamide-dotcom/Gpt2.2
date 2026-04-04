@@ -122,6 +122,7 @@ export interface SubmitDepositRequestInput {
   tokenCode: DepositTokenCode;
   amountUsd: number;
   copiedAt?: string | null;
+  submittedByTelegramId?: string | null;
 }
 
 export interface ManualDepositReviewInput {
@@ -145,6 +146,7 @@ export interface DepositRequest {
   submittedAt: string;
   reviewedAt: string | null;
   approvalMessage: string | null;
+  submittedByTelegramId?: string | null;
 }
 
 export interface TradingBotState {
@@ -977,6 +979,7 @@ export const submitDepositRequest = async (input: SubmitDepositRequestInput) =>
           creditedAmountUsd: null,
           status: "pending_review",
           copiedAt: input.copiedAt ?? null,
+          submittedByTelegramId: input.submittedByTelegramId ?? null,
           submittedAt: nowIso(),
           reviewedAt: null,
           approvalMessage: "Awaiting manual review.",

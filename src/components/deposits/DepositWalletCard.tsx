@@ -16,6 +16,7 @@ import {
   type DepositWallet,
   type SubmitDepositRequestInput,
 } from "@/lib/account-workflow";
+import { getTelegramWebAppUserId } from "@/hooks/use-telegram";
 import { cn } from "@/lib/utils";
 
 interface DepositWalletCardProps {
@@ -126,10 +127,12 @@ const DepositWalletCard = ({
     }
 
     try {
+      const telegramId = getTelegramWebAppUserId();
       await onSubmitDepositRequest({
         tokenCode: wallet.tokenCode,
         amountUsd,
         copiedAt,
+        submittedByTelegramId: telegramId ?? null,
       });
 
       setDepositAmount("");
