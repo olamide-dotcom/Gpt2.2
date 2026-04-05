@@ -248,6 +248,11 @@ export const getTelegramUser = (): TelegramUser | undefined => {
   return window.Telegram?.WebApp.initDataUnsafe?.user;
 };
 
+export const getTelegramWebAppUserId = (): string | null => {
+  const user = getTelegramUser();
+  return user?.id ? String(user.id) : null;
+};
+
 /**
  * Get the current color scheme
  */

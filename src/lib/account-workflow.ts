@@ -806,6 +806,26 @@ const persistSnapshot = (snapshot: WorkflowSnapshot) => {
   return normalizedSnapshot;
 };
 
+export const replaceWorkflowSnapshot = (snapshot: Partial<WorkflowSnapshot> | WorkflowSnapshot) =>
+  persistSnapshot(createWorkflowSnapshot(snapshot));
+
+export const rebaseWorkflowSnapshot = (
+  snapshot: Partial<WorkflowSnapshot> | WorkflowSnapshot | null | undefined,
+  userId: string,
+) => {
+  const normalizedSnapshot = createWorkflowSnapshot(snapshot);
+
+  if (normalizedSnapshot.userId === userId) {
+    return normalizedSnapshot;
+  }
+
+  return createWorkflowSnapshot({
+    ...normalizedSnapshot,
+    userId,
+    depositAddresses: [],
+  });
+};
+
 const updateSnapshot = async (updater: (snapshot: WorkflowSnapshot) => WorkflowSnapshot) => {
   const currentSnapshot = readStoredSnapshot();
   const nextSnapshot = updater(currentSnapshot);

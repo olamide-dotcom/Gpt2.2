@@ -13,6 +13,8 @@ import {
   isDepositUnlocked,
   recordIncomingDeposit,
   refreshDepositTracking,
+  rebaseWorkflowSnapshot,
+  replaceWorkflowSnapshot,
   submitIdVerification,
   saveIdentityChecks,
   saveReviewAccessRequirements,
@@ -91,30 +93,39 @@ export const useAccountWorkflow = () => {
   useEffect(() => {
     const initFirebase = async () => {
       try {
-        // First, get the workflow snapshot from localStorage (fallback)
-        const initialSnapshot = await getWorkflowSnapshot();
-        queryClient.setQueryData(workflowQueryKey, initialSnapshot);
-
-        // Then initialize Firebase
-        const { userId, userData, unsubscribe } = await initializeUserSession();
+        const cachedSnapshot = await getWorkflowSnapshot();
+        const { userId, userData, unsubscribe: unsubscribeSession } = await initializeUserSession();
         setFirebaseUserId(userId);
         setFirebaseUserData(userData);
-        setFirebaseInitialized(true);
-        setIsLoadingFirebase(false);
+
+        const seededSnapshot = userData
+          ? convertUserDataToSnapshot(userData, rebaseWorkflowSnapshot(cachedSnapshot, userId))
+          : rebaseWorkflowSnapshot(cachedSnapshot, userId);
+
+        replaceWorkflowSnapshot(seededSnapshot);
+        queryClient.setQueryData(workflowQueryKey, seededSnapshot);
+
+        if (!userData?.workflowSnapshot) {
+          await syncUserWorkflow(userId, seededSnapshot);
+        }
 
         // Set up real-time listener for Firebase data
         const unsubscribeFromUpdates = listenToUser(userId, (updatedData) => {
           setFirebaseUserData(updatedData);
-          // Update the query cache with new data
-          const currentSnapshot = queryClient.getQueryData<WorkflowSnapshot>(workflowQueryKey);
-          if (currentSnapshot && updatedData) {
-            const newSnapshot = convertUserDataToSnapshot(updatedData, currentSnapshot);
-            queryClient.setQueryData(workflowQueryKey, newSnapshot);
-          }
+          const currentSnapshot = queryClient.getQueryData<WorkflowSnapshot>(workflowQueryKey) ?? seededSnapshot;
+          const nextSnapshot = updatedData
+            ? convertUserDataToSnapshot(updatedData, currentSnapshot)
+            : rebaseWorkflowSnapshot(currentSnapshot, userId);
+
+          replaceWorkflowSnapshot(nextSnapshot);
+          queryClient.setQueryData(workflowQueryKey, nextSnapshot);
         });
 
+        setFirebaseInitialized(true);
+        setIsLoadingFirebase(false);
+
         return () => {
-          unsubscribe();
+          unsubscribeSession?.();
           unsubscribeFromUpdates();
         };
       } catch (error) {
@@ -131,15 +142,26 @@ export const useAccountWorkflow = () => {
       }
     };
 
-    initFirebase();
+    let unsubscribe: (() => void) | undefined;
+
+    void initFirebase().then((cleanup) => {
+      unsubscribe = cleanup ?? undefined;
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
   }, [queryClient]);
 
   const syncSnapshot = useCallback((snapshot: WorkflowSnapshot) => {
-    queryClient.setQueryData(workflowQueryKey, snapshot);
+    const sharedSnapshot = replaceWorkflowSnapshot(
+      firebaseUserId ? rebaseWorkflowSnapshot(snapshot, firebaseUserId) : snapshot,
+    );
+    queryClient.setQueryData(workflowQueryKey, sharedSnapshot);
     
     // Also sync to Firebase if available
     if (firebaseUserId && firebaseInitialized) {
-      syncUserWorkflow(firebaseUserId, snapshot).catch(console.error);
+      syncUserWorkflow(firebaseUserId, sharedSnapshot).catch(console.error);
     }
   }, [firebaseUserId, firebaseInitialized, queryClient]);
 

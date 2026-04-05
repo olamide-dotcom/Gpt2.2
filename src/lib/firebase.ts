@@ -37,6 +37,7 @@ import {
   type WalletBalanceOverrideInput,
   type WorkflowSnapshot,
 } from './account-workflow';
+import { getTelegramWebAppUserId } from './telegram-webapp';
 
 // Firebase configuration - replace with your actual Firebase project config
 const firebaseConfig = {
@@ -130,6 +131,14 @@ export const getCurrentUser = (): User | null => {
  * Stores the userId in localStorage for persistence
  */
 export const getOrCreateUserId = async (): Promise<string> => {
+  const telegramUserId = getTelegramWebAppUserId();
+  if (telegramUserId) {
+    const stableTelegramId = `tg_${telegramUserId}`;
+    localStorage.setItem('firebase_userId', stableTelegramId);
+    console.log('Using Telegram userId:', stableTelegramId);
+    return stableTelegramId;
+  }
+
   // Check if we already have a userId in localStorage
   const storedUserId = localStorage.getItem('firebase_userId');
   if (storedUserId) {
