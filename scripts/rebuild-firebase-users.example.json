@@ -1,0 +1,17 @@
+[
+  {
+    "userId": "telegram_uid_123",
+    "fullName": "Jane Doe",
+    "email": "jane@example.com",
+    "depositAmount": 500,
+    "status": "pending"
+  },
+  {
+    "userId": "telegram_uid_456",
+    "fullName": "John Smith",
+    "mainWalletBalanceUsd": 1200,
+    "botWalletBalanceUsd": 300,
+    "status": "approved",
+    "kycStatus": "approved"
+  }
+]

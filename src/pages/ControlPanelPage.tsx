@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getPendingDepositRequests, listenToPendingDepositRequests, type DepositRequestData } from "@/lib/firebase-deposits";
+import { toast } from "@/components/ui/sonner";
+import { getPendingDepositRequests, listenToPendingDepositRequests, reviewDepositRequest, type DepositRequestData } from "@/lib/firebase-deposits";
 import { useAccountWorkflow } from "@/hooks/use-account-workflow";
-import { getAllUsers, type UserData } from "@/lib/firebase";
+import { getAllUsers, updateUserStatus, type UserData, type UserStatus } from "@/lib/firebase";
 
 interface SharedServerRequest {
   id: string;
@@ -25,6 +26,20 @@ interface SharedServerRequest {
   submitted_at?: string | null;
   submitted_by_telegram_id?: string | null;
 }
+
+const shouldShowInWalletControls = (user: UserData) => {
+  const snapshotIdentity = user.workflowSnapshot?.identityChecks;
+
+  return Boolean(
+    user.fullName ||
+      user.email ||
+      snapshotIdentity?.fullName ||
+      snapshotIdentity?.email ||
+      typeof user.depositAmount === "number" ||
+      typeof user.mainWalletBalanceUsd === "number" ||
+      typeof user.botWalletBalanceUsd === "number",
+  );
+};
 
 const ControlPanelPage = () => {
   const {
@@ -45,6 +60,8 @@ const ControlPanelPage = () => {
   const [loadingServerRequests, setLoadingServerRequests] = useState(false);
   const [loadingFirebaseRequests, setLoadingFirebaseRequests] = useState(false);
   const [loadingSharedUsers, setLoadingSharedUsers] = useState(false);
+  const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [balanceDrafts, setBalanceDrafts] = useState<Record<string, { mainWalletBalanceUsd: string; botWalletBalanceUsd: string }>>({});
   const [unlocked, setUnlocked] = useState(() => {
     try {
@@ -106,6 +123,61 @@ const ControlPanelPage = () => {
       console.error("fetch shared users failed", error);
     } finally {
       setLoadingSharedUsers(false);
+    }
+  };
+
+  const handleFirebaseRequestReview = async (
+    request: DepositRequestData,
+    status: "approved" | "rejected",
+  ) => {
+    setReviewingRequestId(request.id);
+
+    try {
+      const creditedAmountUsd = status === "approved" ? request.requestedAmountUsd : null;
+
+      await reviewDepositRequest({
+        requestId: request.id,
+        status,
+        creditedAmountUsd,
+        approvalMessage:
+          status === "approved"
+            ? "Approved by control panel"
+            : "Rejected by control panel",
+      });
+
+      await applyManualDepositReview({
+        requestId: request.id,
+        status,
+        userId: request.userId,
+        creditedAmountUsd,
+        approvalMessage:
+          status === "approved"
+            ? "Approved by control panel"
+            : "Rejected by control panel",
+      });
+
+      await Promise.all([fetchFirebaseRequests(), fetchSharedUsers()]);
+      toast.success(status === "approved" ? "Deposit approved" : "Deposit rejected");
+    } catch (error) {
+      console.error("review firebase request failed", error);
+      toast.error("Failed to update deposit request");
+    } finally {
+      setReviewingRequestId(null);
+    }
+  };
+
+  const handleSharedUserStatusUpdate = async (userId: string, status: UserStatus) => {
+    setUpdatingUserId(userId);
+
+    try {
+      await updateUserStatus(userId, status);
+      await fetchSharedUsers();
+      toast.success(`User marked ${status}`);
+    } catch (error) {
+      console.error("update shared user status failed", error);
+      toast.error("Failed to update user status");
+    } finally {
+      setUpdatingUserId(null);
     }
   };
 
@@ -172,6 +244,7 @@ const ControlPanelPage = () => {
   const pendingRequests = snapshot.depositRequests.filter((request) => request.status === "pending_review");
   const sharedPendingRequests = serverRequests.filter((request) => request.status === "pending_review");
   const combinedSharedRequestCount = sharedPendingRequests.length + firebaseRequests.length;
+  const walletControlUsers = sharedUsers.filter(shouldShowInWalletControls);
 
   return (
     <JourneyShell
@@ -270,7 +343,24 @@ const ControlPanelPage = () => {
                                 <div className="text-sm text-muted-foreground">Network: {request.networkLabel}</div>
                                 <div className="text-sm text-muted-foreground">Status: {request.status}</div>
                               </div>
-                              <Badge variant="outline">Firestore</Badge>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">Firestore</Badge>
+                                <Button
+                                  size="sm"
+                                  disabled={reviewingRequestId === request.id || isApplyingDepositReview}
+                                  onClick={() => void handleFirebaseRequestReview(request, "approved")}
+                                >
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={reviewingRequestId === request.id || isApplyingDepositReview}
+                                  onClick={() => void handleFirebaseRequestReview(request, "rejected")}
+                                >
+                                  Reject
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -349,19 +439,19 @@ const ControlPanelPage = () => {
                   <CardTitle className="text-lg">Multi-user wallet controls</CardTitle>
                 </div>
                 <CardDescription>
-                  These balances are saved against each user record, so approvals and edits stay attached to the right
-                  account across browsers.
+                  Only users with onboarding details or wallet and deposit activity appear here, so blank bot-created
+                  records stay out of the list.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {loadingSharedUsers ? (
                   <div className="text-sm text-muted-foreground">Loading shared users...</div>
-                ) : sharedUsers.length === 0 ? (
+                ) : walletControlUsers.length === 0 ? (
                   <div className="text-sm text-muted-foreground">
-                    No shared users found yet. A user record appears after someone opens the app.
+                    No eligible shared users found yet. Users appear here after onboarding details or wallet activity are saved.
                   </div>
                 ) : (
-                  sharedUsers.map((user) => {
+                  walletControlUsers.map((user) => {
                     const draft = balanceDrafts[user.userId] ?? {
                       mainWalletBalanceUsd: String(user.mainWalletBalanceUsd ?? user.depositAmount ?? 0),
                       botWalletBalanceUsd: String(user.botWalletBalanceUsd ?? 0),
@@ -375,9 +465,35 @@ const ControlPanelPage = () => {
                             <div className="text-sm text-muted-foreground">User ID: {user.userId}</div>
                             <div className="text-sm text-muted-foreground">Status: {user.status}</div>
                           </div>
-                          <Badge variant="outline">
-                            Main {user.mainWalletBalanceUsd ?? user.depositAmount ?? 0} / Bot {user.botWalletBalanceUsd ?? 0}
-                          </Badge>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">
+                              Main {user.mainWalletBalanceUsd ?? user.depositAmount ?? 0} / Bot {user.botWalletBalanceUsd ?? 0}
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant={user.status === "approved" ? "secondary" : "default"}
+                              disabled={updatingUserId === user.userId}
+                              onClick={() => void handleSharedUserStatusUpdate(user.userId, "approved")}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={updatingUserId === user.userId}
+                              onClick={() => void handleSharedUserStatusUpdate(user.userId, "pending")}
+                            >
+                              Pending
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={updatingUserId === user.userId}
+                              onClick={() => void handleSharedUserStatusUpdate(user.userId, "rejected")}
+                            >
+                              Reject
+                            </Button>
+                          </div>
                         </div>
 
                         <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
