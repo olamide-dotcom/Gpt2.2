@@ -3,7 +3,7 @@ import { strategies, type StrategyId } from "@/content/site";
 const STORAGE_KEY = "gpt2.tradebot.onboarding-deposit.v2";
 const BOT_TICK_INTERVAL_MS = 8_000;
 const MAX_SYNC_TICKS = 240;
-export const MAX_BOT_GAIN_PERCENT = 35;
+export const MAX_BOT_GAIN_PERCENT = 30;
 export const MAX_BOT_LOSS_PERCENT = 15;
 
 export type ApprovalStatus = "draft" | "approved";
@@ -127,6 +127,7 @@ export interface SubmitDepositRequestInput {
 
 export interface ManualDepositReviewInput {
   requestId: string;
+  userId?: string;
   status: Exclude<DepositRequestStatus, "pending_review">;
   creditedAmountUsd?: number | null;
   approvalMessage?: string;
@@ -782,6 +783,19 @@ const creditApprovedDeposit = (
     ],
   });
 
+export const createWorkflowSnapshot = (snapshot?: Partial<WorkflowSnapshot> | null): WorkflowSnapshot => {
+  const normalizedSnapshot = normalizeSnapshot(snapshot);
+  const withAddresses =
+    normalizedSnapshot.approvalStatus === "approved" && normalizedSnapshot.depositAddresses.length === 0
+      ? {
+          ...normalizedSnapshot,
+          depositAddresses: createDepositAddresses(normalizedSnapshot),
+        }
+      : normalizedSnapshot;
+
+  return syncTradingBotState(withAddresses);
+};
+
 const persistSnapshot = (snapshot: WorkflowSnapshot) => {
   const normalizedSnapshot = normalizeSnapshot({
     ...snapshot,
@@ -836,16 +850,7 @@ export const formatUsdCurrency = (value: number | string) =>
 
 export const getWorkflowSnapshot = async () => {
   const currentSnapshot = readStoredSnapshot();
-  let nextSnapshot = currentSnapshot;
-
-  if (currentSnapshot.approvalStatus === "approved" && currentSnapshot.depositAddresses.length === 0) {
-    nextSnapshot = {
-      ...nextSnapshot,
-      depositAddresses: createDepositAddresses(nextSnapshot),
-    };
-  }
-
-  nextSnapshot = syncTradingBotState(nextSnapshot);
+  const nextSnapshot = createWorkflowSnapshot(currentSnapshot);
 
   return nextSnapshot !== currentSnapshot ? persistSnapshot(nextSnapshot) : currentSnapshot;
 };
@@ -1022,69 +1027,74 @@ export const submitIdVerification = async (input: SubmitIdVerificationInput) =>
     };
   });
 
-export const applyManualDepositReview = async (input: ManualDepositReviewInput) =>
-  updateSnapshot((currentSnapshot) => {
-    const snapshot = syncTradingBotState(currentSnapshot);
-    const request = snapshot.depositRequests.find((item) => item.id === input.requestId);
+export const applyManualDepositReviewToSnapshot = (
+  currentSnapshot: WorkflowSnapshot,
+  input: ManualDepositReviewInput,
+): WorkflowSnapshot => {
+  const snapshot = syncTradingBotState(currentSnapshot);
+  const request = snapshot.depositRequests.find((item) => item.id === input.requestId);
 
-    if (!request || request.status !== "pending_review") {
-      return snapshot;
-    }
+  if (!request || request.status !== "pending_review") {
+    return snapshot;
+  }
 
-    const reviewedAt = nowIso();
-    const creditedAmountUsd = sanitizeNumber(input.creditedAmountUsd ?? request.requestedAmountUsd);
-    const approvalMessage =
-      input.approvalMessage?.trim() ||
-      (input.status === "approved"
-        ? "Deposit confirmed manually and credited to the wallet."
-        : "Deposit request rejected during manual review.");
+  const reviewedAt = nowIso();
+  const creditedAmountUsd = sanitizeNumber(input.creditedAmountUsd ?? request.requestedAmountUsd);
+  const approvalMessage =
+    input.approvalMessage?.trim() ||
+    (input.status === "approved"
+      ? "Deposit confirmed manually and credited to the wallet."
+      : "Deposit request rejected during manual review.");
 
-    let nextSnapshot: WorkflowSnapshot = {
-      ...snapshot,
-      depositRequests: snapshot.depositRequests.map((item) =>
-        item.id === request.id
-          ? {
-              ...item,
-              status: input.status,
-              creditedAmountUsd: input.status === "approved" ? creditedAmountUsd : null,
-              reviewedAt,
-              approvalMessage,
-            }
-          : item,
-      ),
+  let nextSnapshot: WorkflowSnapshot = {
+    ...snapshot,
+    depositRequests: snapshot.depositRequests.map((item) =>
+      item.id === request.id
+        ? {
+            ...item,
+            status: input.status,
+            creditedAmountUsd: input.status === "approved" ? creditedAmountUsd : null,
+            reviewedAt,
+            approvalMessage,
+          }
+        : item,
+    ),
+  };
+
+  if (input.walletBalanceOverrides) {
+    nextSnapshot = applyWalletBalanceOverrides(nextSnapshot, input.walletBalanceOverrides);
+  }
+
+  if (input.status !== "approved" || creditedAmountUsd <= 0) {
+    return nextSnapshot;
+  }
+
+  const depositWallet =
+    snapshot.depositAddresses.find((wallet) => wallet.tokenCode === request.tokenCode && wallet.address === request.address) ??
+    snapshot.depositAddresses.find((wallet) => wallet.tokenCode === request.tokenCode) ?? {
+      tokenCode: request.tokenCode,
+      tokenName: request.tokenName,
+      networkLabel: request.networkLabel,
+      address: request.address,
     };
 
-    if (input.walletBalanceOverrides) {
-      nextSnapshot = applyWalletBalanceOverrides(nextSnapshot, input.walletBalanceOverrides);
-    }
+  const hasMainWalletOverride =
+    input.walletBalanceOverrides?.mainWalletBalanceUsd !== undefined &&
+    input.walletBalanceOverrides.mainWalletBalanceUsd !== null;
 
-    if (input.status !== "approved" || creditedAmountUsd <= 0) {
-      return nextSnapshot;
-    }
+  return creditApprovedDeposit(
+    nextSnapshot,
+    depositWallet,
+    creditedAmountUsd,
+    "manual review",
+    `manual-${request.id}`,
+    reviewedAt,
+    !hasMainWalletOverride,
+  );
+};
 
-    const depositWallet =
-      snapshot.depositAddresses.find((wallet) => wallet.tokenCode === request.tokenCode && wallet.address === request.address) ??
-      snapshot.depositAddresses.find((wallet) => wallet.tokenCode === request.tokenCode) ?? {
-        tokenCode: request.tokenCode,
-        tokenName: request.tokenName,
-        networkLabel: request.networkLabel,
-        address: request.address,
-      };
-
-    const hasMainWalletOverride =
-      input.walletBalanceOverrides?.mainWalletBalanceUsd !== undefined &&
-      input.walletBalanceOverrides.mainWalletBalanceUsd !== null;
-
-    return creditApprovedDeposit(
-      nextSnapshot,
-      depositWallet,
-      creditedAmountUsd,
-      "manual review",
-      `manual-${request.id}`,
-      reviewedAt,
-      !hasMainWalletOverride,
-    );
-  });
+export const applyManualDepositReview = async (input: ManualDepositReviewInput) =>
+  updateSnapshot((currentSnapshot) => applyManualDepositReviewToSnapshot(currentSnapshot, input));
 
 export interface ManualIdReviewInput {
   requestId: string;
@@ -1121,8 +1131,13 @@ export const applyManualIdReview = async (input: ManualIdReviewInput) =>
     return nextSnapshot;
   });
 
+export const applyWalletBalanceOverridesToSnapshot = (
+  currentSnapshot: WorkflowSnapshot,
+  input: WalletBalanceOverrideInput,
+): WorkflowSnapshot => applyWalletBalanceOverrides(syncTradingBotState(currentSnapshot), input);
+
 export const setWalletBalances = async (input: WalletBalanceOverrideInput) =>
-  updateSnapshot((currentSnapshot) => applyWalletBalanceOverrides(syncTradingBotState(currentSnapshot), input));
+  updateSnapshot((currentSnapshot) => applyWalletBalanceOverridesToSnapshot(currentSnapshot, input));
 
 export const simulateDepositCredit = async (input: SimulateDepositCreditInput) =>
   updateSnapshot((currentSnapshot) => {

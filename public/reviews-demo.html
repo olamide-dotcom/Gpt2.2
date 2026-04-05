@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Review Demo</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: "Segoe UI", sans-serif;
+        background: linear-gradient(135deg, #101826, #1c2d4a);
+        color: #f8fafc;
+      }
+
+      .shell {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 32px 16px 48px;
+      }
+
+      .card {
+        background: rgba(15, 23, 42, 0.78);
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 20px;
+        padding: 20px;
+        margin-bottom: 20px;
+        backdrop-filter: blur(10px);
+      }
+
+      .row {
+        display: grid;
+        gap: 12px;
+      }
+
+      input, textarea, button {
+        font: inherit;
+      }
+
+      input, textarea {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        background: rgba(15, 23, 42, 0.9);
+        color: #f8fafc;
+        box-sizing: border-box;
+      }
+
+      textarea {
+        min-height: 110px;
+        resize: vertical;
+      }
+
+      button {
+        border: 0;
+        border-radius: 12px;
+        padding: 12px 16px;
+        background: #fbbf24;
+        color: #0f172a;
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      .review {
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 16px;
+        padding: 16px;
+        margin-top: 12px;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 13px;
+        color: #cbd5e1;
+      }
+
+      .status {
+        text-transform: capitalize;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="card">
+        <h1>Review Submission Demo</h1>
+        <p>Simple HTML/JS example for the Express review backend.</p>
+      </div>
+
+      <div class="card row">
+        <label>
+          User ID
+          <input id="userId" placeholder="user-123" />
+        </label>
+        <label>
+          Review Text
+          <textarea id="reviewText" placeholder="Write your review"></textarea>
+        </label>
+        <div>
+          <button id="submitButton">Submit Review</button>
+          <button id="fetchButton">Fetch My Reviews</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>My Reviews</h2>
+        <div id="reviews"></div>
+      </div>
+    </div>
+
+    <script>
+      const userIdInput = document.getElementById("userId");
+      const reviewTextInput = document.getElementById("reviewText");
+      const reviewsContainer = document.getElementById("reviews");
+
+      async function fetchMyReviews() {
+        const userId = userIdInput.value.trim();
+        if (!userId) {
+          alert("Enter a user ID first.");
+          return;
+        }
+
+        const response = await fetch(`/my-reviews/${encodeURIComponent(userId)}`);
+        const payload = await response.json();
+
+        if (!response.ok) {
+          alert(payload.error || "Failed to fetch reviews.");
+          return;
+        }
+
+        reviewsContainer.innerHTML = payload.reviews.length
+          ? payload.reviews
+              .map(
+                (review) => `
+                  <div class="review">
+                    <div class="meta">
+                      <span>${review.id}</span>
+                      <span class="status">${review.status}</span>
+                    </div>
+                    <p>${review.reviewText}</p>
+                    <div class="meta">
+                      <span>${new Date(review.timestamp).toLocaleString()}</span>
+                      <span>User: ${review.userId}</span>
+                    </div>
+                  </div>
+                `,
+              )
+              .join("")
+          : "<p>No reviews yet.</p>";
+      }
+
+      async function submitReview() {
+        const userId = userIdInput.value.trim();
+        const reviewText = reviewTextInput.value.trim();
+
+        if (!userId || !reviewText) {
+          alert("Enter both user ID and review text.");
+          return;
+        }
+
+        const response = await fetch("/submit-review", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId, reviewText }),
+        });
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+          alert(payload.error || "Failed to submit review.");
+          return;
+        }
+
+        reviewTextInput.value = "";
+        await fetchMyReviews();
+      }
+
+      document.getElementById("submitButton").addEventListener("click", submitReview);
+      document.getElementById("fetchButton").addEventListener("click", fetchMyReviews);
+    </script>
+  </body>
+</html>

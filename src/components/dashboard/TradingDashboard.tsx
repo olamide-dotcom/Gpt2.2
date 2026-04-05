@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import BotSetupDialog from "@/components/dashboard/BotSetupDialog";
+import ReviewCenter from "@/components/reviews/ReviewCenter";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -376,6 +377,8 @@ const TradingDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      <ReviewCenter userId={snapshot.userId} />
 
       <BotSetupDialog
         open={botModalOpen}

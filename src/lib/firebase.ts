@@ -29,6 +29,14 @@ import {
   onAuthStateChanged,
   type User
 } from 'firebase/auth';
+import {
+  applyManualDepositReviewToSnapshot,
+  applyWalletBalanceOverridesToSnapshot,
+  createWorkflowSnapshot,
+  type ManualDepositReviewInput,
+  type WalletBalanceOverrideInput,
+  type WorkflowSnapshot,
+} from './account-workflow';
 
 // Firebase configuration - replace with your actual Firebase project config
 const firebaseConfig = {
@@ -69,6 +77,8 @@ const USERS_COLLECTION = 'users';
 export interface UserData {
   userId: string;
   depositAmount?: number;
+  mainWalletBalanceUsd?: number;
+  botWalletBalanceUsd?: number;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: Date;
   updatedAt?: Date;
@@ -76,6 +86,7 @@ export interface UserData {
   fullName?: string;
   walletAddress?: string;
   kycStatus?: 'pending' | 'approved' | 'rejected';
+  workflowSnapshot?: WorkflowSnapshot;
 }
 
 export type UserStatus = 'pending' | 'approved' | 'rejected';
@@ -209,6 +220,86 @@ export const updateUser = async (
     console.error('❌ Error updating user:', error);
     throw error;
   }
+};
+
+export const upsertUser = async (
+  userId: string,
+  data: Partial<UserData>
+): Promise<void> => {
+  try {
+    const userRef = doc(db, USERS_COLLECTION, userId);
+    await setDoc(
+      userRef,
+      {
+        userId,
+        ...data,
+        updatedAt: new Date(),
+      },
+      { merge: true },
+    );
+    console.log('✅ User upserted in Firestore:', userId);
+  } catch (error) {
+    console.error('❌ Error upserting user:', error);
+    throw error;
+  }
+};
+
+const buildUserWorkflowPatch = (snapshot: WorkflowSnapshot): Partial<UserData> => ({
+  workflowSnapshot: snapshot,
+  depositAmount: snapshot.mainWalletBalanceUsd,
+  mainWalletBalanceUsd: snapshot.mainWalletBalanceUsd,
+  botWalletBalanceUsd: snapshot.botWalletBalanceUsd,
+  status: snapshot.approvalStatus === 'approved' ? 'approved' : 'pending',
+  email: snapshot.identityChecks.email || undefined,
+  fullName: snapshot.identityChecks.fullName || undefined,
+});
+
+export const syncUserWorkflow = async (
+  userId: string,
+  snapshot: WorkflowSnapshot,
+): Promise<void> => {
+  await upsertUser(userId, buildUserWorkflowPatch(snapshot));
+};
+
+const createRemoteWorkflowBase = (userId: string, userData: UserData | null) =>
+  createWorkflowSnapshot(
+    userData?.workflowSnapshot
+      ? {
+          ...userData.workflowSnapshot,
+          userId,
+        }
+      : {
+          userId,
+          identityChecks: {
+            fullName: userData?.fullName ?? '',
+            email: userData?.email ?? '',
+            country: '',
+            idType: '',
+            notes: '',
+          },
+          mainWalletBalanceUsd: userData?.mainWalletBalanceUsd ?? userData?.depositAmount ?? 0,
+          botWalletBalanceUsd: userData?.botWalletBalanceUsd ?? 0,
+        },
+  );
+
+export const applyDepositReviewToUserWorkflow = async (
+  userId: string,
+  input: ManualDepositReviewInput,
+): Promise<WorkflowSnapshot> => {
+  const userData = await getUser(userId);
+  const nextSnapshot = applyManualDepositReviewToSnapshot(createRemoteWorkflowBase(userId, userData), input);
+  await syncUserWorkflow(userId, nextSnapshot);
+  return nextSnapshot;
+};
+
+export const setUserWorkflowWalletBalances = async (
+  userId: string,
+  input: WalletBalanceOverrideInput,
+): Promise<WorkflowSnapshot> => {
+  const userData = await getUser(userId);
+  const nextSnapshot = applyWalletBalanceOverridesToSnapshot(createRemoteWorkflowBase(userId, userData), input);
+  await syncUserWorkflow(userId, nextSnapshot);
+  return nextSnapshot;
 };
 
 /**
@@ -427,8 +518,12 @@ export default {
   createUser,
   getUser,
   updateUser,
+  upsertUser,
   updateUserStatus,
   updateUserDepositAmount,
+  syncUserWorkflow,
+  applyDepositReviewToUserWorkflow,
+  setUserWorkflowWalletBalances,
   listenToUser,
   listenToUserStatus,
   getUsersByStatus,

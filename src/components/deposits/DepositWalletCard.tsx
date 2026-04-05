@@ -135,11 +135,13 @@ const DepositWalletCard = ({
         submittedByTelegramId: telegramId ?? null,
       });
 
-      // Also send to server queue if available
+      let sharedQueueSynced = false;
+
+      // Try to mirror the request to the shared server queue for cross-browser admin visibility.
       try {
-        void fetch('/api/requests/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const response = await fetch("/api/requests/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             id: `req-${Date.now()}`,
             account_id: accountId,
@@ -151,14 +153,21 @@ const DepositWalletCard = ({
             copied_at: copiedAt,
             submitted_by_telegram_id: telegramId ?? null,
           }),
-        }).catch(() => {});
+        });
+
+        sharedQueueSynced = response.ok;
       } catch {}
 
       setDepositAmount("");
       setCopied(false);
       setCopiedAt(null);
       setPhase("amount");
-      toast.success(`${wallet.tokenCode} deposit request sent for review .`);
+      if (sharedQueueSynced) {
+        toast.success(`${wallet.tokenCode} deposit request sent for shared review.`);
+      } else {
+        toast.success(`${wallet.tokenCode} deposit request sent for review.`);
+        toast.warning("Shared queue sync failed, so this request may only appear in the current browser.");
+      }
     } catch {
       toast.error("Unable to submit the deposit confirmation right now.");
     }

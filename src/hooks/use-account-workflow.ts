@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   activateAccountWorkflows,
   applyManualDepositReview,
+  createWorkflowSnapshot,
   getCompletionPercentage,
   getIncompleteSteps,
   getTotalWalletBalance,
@@ -31,12 +32,11 @@ import {
 
 // Firebase imports
 import {
-  getOrCreateUserId,
   initializeUserSession,
   listenToUser,
-  updateUser,
-  createUser,
-  getUser,
+  applyDepositReviewToUserWorkflow,
+  setUserWorkflowWalletBalances,
+  syncUserWorkflow,
   type UserData,
 } from "@/lib/firebase";
 
@@ -44,90 +44,38 @@ import {
 import {
   createDepositRequest as firebaseCreateDepositRequest,
   reviewDepositRequest as firebaseReviewDepositRequest,
-  listenToUserDepositRequests,
-  type DepositRequestData,
 } from "@/lib/firebase-deposits";
-import type { DepositRequest } from "@/lib/account-workflow";
 
 const workflowQueryKey = ["account-workflow"];
 
 // Convert Firebase UserData to WorkflowSnapshot
 const convertUserDataToSnapshot = (userData: UserData | null, existingSnapshot?: WorkflowSnapshot): WorkflowSnapshot => {
-  // If we have existing snapshot, preserve most fields and only update what's in Firebase
-  if (existingSnapshot) {
-    return {
-      ...existingSnapshot,
-      // Override with Firebase data
-      approvalStatus: userData?.status === 'approved' ? 'approved' : (userData?.status === 'rejected' ? 'draft' : 'draft'),
-      mainWalletBalanceUsd: userData?.depositAmount || existingSnapshot.mainWalletBalanceUsd,
-      updatedAt: new Date().toISOString(),
-    };
-  }
+  const baseSnapshot = userData?.workflowSnapshot
+    ? {
+        ...userData.workflowSnapshot,
+        userId: userData.userId,
+      }
+    : existingSnapshot
+      ? {
+          ...existingSnapshot,
+          userId: userData?.userId ?? existingSnapshot.userId,
+        }
+      : {
+          userId: userData?.userId || "unknown",
+        };
 
-  // Create a new snapshot from Firebase data
-  return {
-    userId: userData?.userId || "unknown",
-    currentStepId: "review-access-requirements" as any,
-    completedStepIds: [],
-    approvalStatus: userData?.status === 'approved' ? 'approved' : 'draft',
-    approvedAt: null,
-    selectedStrategyId: null,
-    reviewRequirements: {
-      residenceCountry: "",
-      investorProfile: "",
-      acknowledgements: {
-        disclosures: false,
-        eligibility: false,
-        communications: false,
-      },
-    },
+  return createWorkflowSnapshot({
+    ...baseSnapshot,
+    approvalStatus: userData?.status === "approved" ? "approved" : baseSnapshot.approvalStatus,
     identityChecks: {
-      fullName: userData?.fullName || "",
-      email: userData?.email || "",
-      country: "",
-      idType: "",
-      notes: "",
+      ...baseSnapshot.identityChecks,
+      fullName: userData?.fullName ?? baseSnapshot.identityChecks?.fullName ?? "",
+      email: userData?.email ?? baseSnapshot.identityChecks?.email ?? "",
     },
-    activation: {
-      supportChannel: "email",
-      reportingCadence: "weekly",
-      alertsEnabled: true,
-      fundingAcknowledgement: false,
-    },
-    depositAddresses: [],
-    depositRequests: [],
-    transactions: [],
-    syncState: {
-      webhookReady: true,
-      pollingReady: true,
-      lastWebhookCheckAt: null,
-      lastPollingCheckAt: null,
-    },
-    simulatedDeposits: [],
-    mainWalletBalanceUsd: userData?.depositAmount || 0,
-    botWalletBalanceUsd: 0,
-    bonusUsd: 0,
-    bonusLocked: true,
-    idVerificationRequests: [],
-    dashboardUnlocked: false,
-    bot: {
-      status: "idle",
-      active: false,
-      allocatedAmountUsd: 0,
-      startingBalanceUsd: 0,
-      currentBalanceUsd: 0,
-      profitUsd: 0,
-      profitLossPercent: 0,
-      tradingSettings: null,
-      activeTradeLabel: null,
-      startedAt: null,
-      stoppedAt: null,
-      lastUpdatedAt: null,
-      sessionId: null,
-      tickCount: 0,
-    },
-    updatedAt: new Date().toISOString(),
-  };
+    mainWalletBalanceUsd:
+      userData?.mainWalletBalanceUsd ?? userData?.depositAmount ?? baseSnapshot.mainWalletBalanceUsd ?? 0,
+    botWalletBalanceUsd: userData?.botWalletBalanceUsd ?? baseSnapshot.botWalletBalanceUsd ?? 0,
+  });
 };
 
 export const useAccountWorkflow = () => {
@@ -191,16 +139,7 @@ export const useAccountWorkflow = () => {
     
     // Also sync to Firebase if available
     if (firebaseUserId && firebaseInitialized) {
-      const depositAmount = snapshot.mainWalletBalanceUsd || snapshot.botWalletBalanceUsd;
-      const status = snapshot.approvalStatus === 'approved' ? 'approved' : 
-                     snapshot.depositRequests.some(r => r.status === 'pending_review') ? 'pending' : 'draft';
-      
-      updateUser(firebaseUserId, {
-        depositAmount,
-        status: status as any,
-        email: snapshot.identityChecks?.email,
-        fullName: snapshot.identityChecks?.fullName,
-      }).catch(console.error);
+      syncUserWorkflow(firebaseUserId, snapshot).catch(console.error);
     }
   }, [firebaseUserId, firebaseInitialized, queryClient]);
 
@@ -223,16 +162,7 @@ export const useAccountWorkflow = () => {
 
   const identityChecksMutation = useMutation({
     mutationFn: saveIdentityChecks,
-    onSuccess: (snapshot) => {
-      syncSnapshot(snapshot);
-      // Also update Firebase with identity info
-      if (firebaseUserId) {
-        updateUser(firebaseUserId, {
-          email: snapshot.identityChecks.email,
-          fullName: snapshot.identityChecks.fullName,
-        }).catch(console.error);
-      }
-    },
+    onSuccess: syncSnapshot,
   });
 
   const strategyTrackMutation = useMutation({
@@ -242,15 +172,7 @@ export const useAccountWorkflow = () => {
 
   const activationMutation = useMutation({
     mutationFn: activateAccountWorkflows,
-    onSuccess: (snapshot) => {
-      syncSnapshot(snapshot);
-      // Update Firebase status to approved
-      if (firebaseUserId) {
-        updateUser(firebaseUserId, {
-          status: 'approved',
-        }).catch(console.error);
-      }
-    },
+    onSuccess: syncSnapshot,
   });
 
   const currentStepMutation = useMutation({
@@ -320,8 +242,9 @@ export const useAccountWorkflow = () => {
 
   const applyManualDepositReviewMutation = useMutation({
     mutationFn: async (input: Parameters<typeof applyManualDepositReview>[0]) => {
-      // First, update in Firebase (this will trigger real-time update for user)
-      if (firebaseUserId && firebaseInitialized) {
+      const targetUserId = (input as Parameters<typeof applyManualDepositReview>[0] & { userId?: string }).userId ?? firebaseUserId;
+
+      if (targetUserId && firebaseInitialized) {
         await firebaseReviewDepositRequest({
           requestId: input.requestId,
           status: input.status,
@@ -332,16 +255,22 @@ export const useAccountWorkflow = () => {
           // Continue with local operation
         });
       }
-      
-      // Then update locally
+
+      if (targetUserId && targetUserId !== firebaseUserId) {
+        return applyDepositReviewToUserWorkflow(targetUserId, input);
+      }
+
       return applyManualDepositReview(input);
     },
-    onSuccess: (data) => {
-      syncSnapshot(data);
+    onSuccess: (data, variables) => {
+      const targetUserId = (variables as typeof variables & { userId?: string }).userId ?? firebaseUserId;
+      if (!targetUserId || targetUserId === firebaseUserId) {
+        syncSnapshot(data);
+      }
 
       try {
         const now = Date.now();
-        const recentlyReviewed = (data.depositRequests || []).filter((r: any) => {
+        const recentlyReviewed = (data.depositRequests || []).filter((r) => {
           if (!r.reviewedAt) return false;
           const reviewedMs = new Date(r.reviewedAt).getTime();
           return now - reviewedMs < 5000; // reviewed in last ~5s
@@ -371,15 +300,16 @@ ${req.approvalMessage ? '\nMessage: ' + req.approvalMessage : ''}`;
   });
 
   const walletBalanceMutation = useMutation({
-    mutationFn: setWalletBalances,
-    onSuccess: (snapshot) => {
-      syncSnapshot(snapshot);
-      // Update Firebase with new balance
-      if (firebaseUserId) {
-        const balance = snapshot.mainWalletBalanceUsd || snapshot.botWalletBalanceUsd;
-        updateUser(firebaseUserId, {
-          depositAmount: balance,
-        }).catch(console.error);
+    mutationFn: async (input: Parameters<typeof setWalletBalances>[0] & { userId?: string }) => {
+      if (input.userId && input.userId !== firebaseUserId) {
+        return setUserWorkflowWalletBalances(input.userId, input);
+      }
+
+      return setWalletBalances(input);
+    },
+    onSuccess: (snapshot, variables) => {
+      if (!variables.userId || variables.userId === firebaseUserId) {
+        syncSnapshot(snapshot);
       }
     },
   });

@@ -11,6 +11,14 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      "/submit-review": "http://localhost:3001",
+      "/my-reviews": "http://localhost:3001",
+      "/update-review": "http://localhost:3001",
+      "/all-reviews": "http://localhost:3001",
+      "/review-demo": "http://localhost:3001",
+      "/health": "http://localhost:3001",
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

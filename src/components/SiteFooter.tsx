@@ -5,7 +5,7 @@ const SiteFooter = () => (
     <div className="container mx-auto flex flex-col items-center justify-between gap-4 text-sm text-muted-foreground md:flex-row">
       <span>
         Copyright {new Date().getFullYear()} <span className="text-gold">gpt.2</span> TradeBot. Crypto trading and
-        insider-bot workflow .
+        client onboarding workflow.
       </span>
       <div className="flex flex-wrap gap-6">
         <Link to="/" className="transition-colors hover:text-foreground">

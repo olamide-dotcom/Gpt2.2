@@ -14,11 +14,8 @@ import {
   onSnapshot,
   query,
   where,
-  orderBy,
   getDocs,
-  serverTimestamp,
-  type DocumentData,
-  type QueryDocumentSnapshot
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { DepositTokenCode, DepositRequestStatus } from './account-workflow';
@@ -28,6 +25,17 @@ import type { DepositTokenCode, DepositRequestStatus } from './account-workflow'
 // ============================================
 
 const DEPOSITS_COLLECTION = 'deposit_requests';
+
+const toTimestampMs = (value: any): number => {
+  if (!value) return 0;
+  if (typeof value?.toDate === 'function') return value.toDate().getTime();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const sortBySubmittedAtDesc = <T extends { submittedAt: any }>(requests: T[]): T[] =>
+  [...requests].sort((a, b) => toTimestampMs(b.submittedAt) - toTimestampMs(a.submittedAt));
 
 // ============================================
 // Types
@@ -103,8 +111,7 @@ export const getUserDepositRequests = async (userId: string): Promise<DepositReq
   try {
     const depositsQuery = query(
       collection(db, DEPOSITS_COLLECTION),
-      where('userId', '==', userId),
-      orderBy('submittedAt', 'desc')
+      where('userId', '==', userId)
     );
     
     const querySnapshot = await getDocs(depositsQuery);
@@ -115,7 +122,7 @@ export const getUserDepositRequests = async (userId: string): Promise<DepositReq
     });
     
     console.log(`✅ Fetched ${requests.length} deposit requests for user:`, userId);
-    return requests;
+    return sortBySubmittedAtDesc(requests);
   } catch (error) {
     console.error('❌ Error fetching user deposit requests:', error);
     return [];
@@ -137,8 +144,7 @@ export const listenToUserDepositRequests = (
   try {
     const depositsQuery = query(
       collection(db, DEPOSITS_COLLECTION),
-      where('userId', '==', userId),
-      orderBy('submittedAt', 'desc')
+      where('userId', '==', userId)
     );
     
     const unsubscribe = onSnapshot(depositsQuery, (querySnapshot) => {
@@ -149,7 +155,7 @@ export const listenToUserDepositRequests = (
       });
       
       console.log('🔄 Real-time deposit requests update:', requests.length, 'requests');
-      callback(requests);
+      callback(sortBySubmittedAtDesc(requests));
     }, (error) => {
       console.error('❌ Error listening to deposit requests:', error);
       callback([]);
@@ -173,8 +179,7 @@ export const getPendingDepositRequests = async (): Promise<DepositRequestData[]>
   try {
     const depositsQuery = query(
       collection(db, DEPOSITS_COLLECTION),
-      where('status', '==', 'pending_review'),
-      orderBy('submittedAt', 'desc')
+      where('status', '==', 'pending_review')
     );
     
     const querySnapshot = await getDocs(depositsQuery);
@@ -185,7 +190,7 @@ export const getPendingDepositRequests = async (): Promise<DepositRequestData[]>
     });
     
     console.log(`✅ Fetched ${requests.length} pending deposit requests`);
-    return requests;
+    return sortBySubmittedAtDesc(requests);
   } catch (error) {
     console.error('❌ Error fetching pending deposit requests:', error);
     return [];
@@ -202,8 +207,7 @@ export const listenToPendingDepositRequests = (
   try {
     const depositsQuery = query(
       collection(db, DEPOSITS_COLLECTION),
-      where('status', '==', 'pending_review'),
-      orderBy('submittedAt', 'desc')
+      where('status', '==', 'pending_review')
     );
     
     const unsubscribe = onSnapshot(depositsQuery, (querySnapshot) => {
@@ -214,7 +218,7 @@ export const listenToPendingDepositRequests = (
       });
       
       console.log('🔄 Real-time pending requests update:', requests.length, 'pending');
-      callback(requests);
+      callback(sortBySubmittedAtDesc(requests));
     }, (error) => {
       console.error('❌ Error listening to pending deposit requests:', error);
       callback([]);

@@ -10,6 +10,7 @@ import DepositPage from "./pages/DepositPage.tsx";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import OnboardingPage from "./pages/OnboardingPage.tsx";
+import ReviewsPage from "./pages/ReviewsPage";
 import WithdrawPage from "./pages/WithdrawPage";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/deposit" element={<DepositPage />} />
+          <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/withdraw" element={<WithdrawPage />} />
           <Route path="/controlpanel" element={<ControlPanelPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
