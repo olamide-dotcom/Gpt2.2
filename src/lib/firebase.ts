@@ -131,6 +131,10 @@ export const getCurrentUser = (): User | null => {
  * Stores the userId in localStorage for persistence
  */
 export const getOrCreateUserId = async (): Promise<string> => {
+  if (!auth.currentUser) {
+    await signInAnonymouslyToFirebase();
+  }
+
   const telegramUserId = getTelegramWebAppUserId();
   if (telegramUserId) {
     const stableTelegramId = `tg_${telegramUserId}`;
@@ -147,7 +151,7 @@ export const getOrCreateUserId = async (): Promise<string> => {
   }
 
   // Sign in anonymously to get a new userId
-  const user = await signInAnonymouslyToFirebase();
+  const user = auth.currentUser ?? (await signInAnonymouslyToFirebase());
   if (user) {
     const userId = user.uid;
     localStorage.setItem('firebase_userId', userId);
