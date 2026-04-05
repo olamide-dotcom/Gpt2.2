@@ -1,0 +1,79 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 220 40% 10%;
+    --foreground: 210 20% 90%;
+
+    --card: 220 35% 14%;
+    --card-foreground: 210 20% 90%;
+
+    --popover: 220 35% 14%;
+    --popover-foreground: 210 20% 90%;
+
+    --primary: 43 96% 56%;
+    --primary-foreground: 220 40% 10%;
+
+    --secondary: 220 30% 18%;
+    --secondary-foreground: 210 20% 90%;
+
+    --muted: 220 25% 20%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 43 96% 56%;
+    --accent-foreground: 220 40% 10%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 25% 22%;
+    --input: 220 25% 22%;
+    --ring: 43 96% 56%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 220 40% 8%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 43 96% 56%;
+    --sidebar-primary-foreground: 220 40% 10%;
+    --sidebar-accent: 220 30% 18%;
+    --sidebar-accent-foreground: 210 20% 90%;
+    --sidebar-border: 220 25% 22%;
+    --sidebar-ring: 43 96% 56%;
+
+    --gold: 43 96% 56%;
+    --gold-light: 43 90% 70%;
+    --navy: 220 40% 10%;
+    --navy-light: 220 35% 14%;
+    --navy-lighter: 220 30% 18%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100vh;
+    background-image: radial-gradient(circle at top, hsl(var(--secondary) / 0.45), transparent 45%);
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
