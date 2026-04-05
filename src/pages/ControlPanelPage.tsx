@@ -1,4 +1,5 @@
 import ManualDepositConsole from "@/components/deposits/ManualDepositConsole";
+import RealtimeDepositConsole from "@/components/deposits/RealtimeDepositConsole";
 import IdVerificationConsole from "@/components/admin/IdVerificationConsole";
 import JourneyShell from "@/components/JourneyShell";
 import { Badge } from "@/components/ui/badge";
@@ -131,6 +132,22 @@ const ControlPanelPage = () => {
 
         {unlocked ? (
           <>
+            {/* Real-time Console - New Firebase-powered interface */}
+            <RealtimeDepositConsole snapshot={snapshot} />
+
+            {/* Legacy Local Console - For backward compatibility */}
+            <Card className="border-border/80">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline">Legacy</Badge>
+                  <CardTitle className="text-lg">Local JSON Review Console</CardTitle>
+                </div>
+                <CardDescription>
+                  The original manual review tool. Use the real-time console above for live updates.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
             <ManualDepositConsole
               isApplyingReview={isApplyingDepositReview}
               isSavingWalletBalances={isSavingWalletBalances}

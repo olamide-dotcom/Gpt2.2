@@ -20,8 +20,8 @@ import {
 interface ManualDepositConsoleProps {
   isApplyingReview: boolean;
   isSavingWalletBalances: boolean;
-  onApplyManualDepositReview: (input: ManualDepositReviewInput) => Promise<void>;
-  onSetWalletBalances: (input: WalletBalanceOverrideInput) => Promise<void>;
+  onApplyManualDepositReview: (input: ManualDepositReviewInput) => Promise<WorkflowSnapshot | void>;
+  onSetWalletBalances: (input: WalletBalanceOverrideInput) => Promise<WorkflowSnapshot | void>;
   snapshot: WorkflowSnapshot;
 }
 
@@ -261,7 +261,7 @@ const ManualDepositConsole = ({
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{request.tokenCode}</Badge>
                         <Badge className={statusBadgeClassNames[request.status]}>
-                          {request.status.replaceAll("_", " ")}
+                          {request.status.replace(/_/g, " ")}
                         </Badge>
                       </div>
                       <div className="text-lg font-semibold text-foreground">

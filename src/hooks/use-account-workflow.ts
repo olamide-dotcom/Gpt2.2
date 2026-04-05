@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -21,11 +21,12 @@ import {
   simulateDepositCredit,
   startTradingBot,
   stopTradingBot,
-  submitDepositRequest,
+  submitDepositRequest as localSubmitDepositRequest,
   syncTradingBotSimulation,
   withdrawBotBalanceToMainWallet,
   applyManualIdReview,
   type WorkflowSnapshot,
+  type SubmitDepositRequestInput,
 } from "@/lib/account-workflow";
 
 // Firebase imports
@@ -38,6 +39,15 @@ import {
   getUser,
   type UserData,
 } from "@/lib/firebase";
+
+// Real-time deposit sync imports
+import {
+  createDepositRequest as firebaseCreateDepositRequest,
+  reviewDepositRequest as firebaseReviewDepositRequest,
+  listenToUserDepositRequests,
+  type DepositRequestData,
+} from "@/lib/firebase-deposits";
+import type { DepositRequest } from "@/lib/account-workflow";
 
 const workflowQueryKey = ["account-workflow"];
 
@@ -264,12 +274,68 @@ export const useAccountWorkflow = () => {
   });
 
   const submitDepositRequestMutation = useMutation({
-    mutationFn: submitDepositRequest,
+    mutationFn: async (input: SubmitDepositRequestInput) => {
+      // First, create locally for immediate UI feedback
+      const localSnapshot = await localSubmitDepositRequest(input);
+      
+      // Then sync to Firebase for real-time admin visibility
+      if (firebaseUserId && firebaseInitialized) {
+        const snapshot = queryClient.getQueryData<WorkflowSnapshot>(workflowQueryKey);
+        if (snapshot) {
+          const wallet = snapshot.depositAddresses.find(w => w.tokenCode === input.tokenCode);
+          if (wallet) {
+            // Find the newly created request (most recent pending one for this token)
+            const newRequest = localSnapshot.depositRequests.find(
+              r => r.tokenCode === input.tokenCode && r.status === 'pending_review'
+            );
+            
+            if (newRequest) {
+              await firebaseCreateDepositRequest({
+                userId: firebaseUserId,
+                id: newRequest.id, // Use the same ID for consistency
+                tokenCode: input.tokenCode,
+                tokenName: wallet.tokenName,
+                networkLabel: wallet.networkLabel,
+                address: wallet.address,
+                requestedAmountUsd: input.amountUsd,
+                creditedAmountUsd: null,
+                status: 'pending_review',
+                submittedAt: new Date(),
+                reviewedAt: null,
+                approvalMessage: 'Awaiting manual review.',
+                submittedByTelegramId: input.submittedByTelegramId,
+              }).catch(err => {
+                console.error('Failed to sync deposit request to Firebase:', err);
+                // Don't throw - local operation succeeded
+              });
+            }
+          }
+        }
+      }
+      
+      return localSnapshot;
+    },
     onSuccess: syncSnapshot,
   });
 
   const applyManualDepositReviewMutation = useMutation({
-    mutationFn: applyManualDepositReview,
+    mutationFn: async (input: Parameters<typeof applyManualDepositReview>[0]) => {
+      // First, update in Firebase (this will trigger real-time update for user)
+      if (firebaseUserId && firebaseInitialized) {
+        await firebaseReviewDepositRequest({
+          requestId: input.requestId,
+          status: input.status,
+          creditedAmountUsd: input.creditedAmountUsd,
+          approvalMessage: input.approvalMessage,
+        }).catch(err => {
+          console.error('Failed to sync review to Firebase:', err);
+          // Continue with local operation
+        });
+      }
+      
+      // Then update locally
+      return applyManualDepositReview(input);
+    },
     onSuccess: (data) => {
       syncSnapshot(data);
 

@@ -1,6 +1,7 @@
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import DepositSection from "@/components/deposits/DepositSection";
+import RealtimeDepositStatus from "@/components/deposits/RealtimeDepositStatus";
 import JourneyShell from "@/components/JourneyShell";
 import { useAccountWorkflow } from "@/hooks/use-account-workflow";
 
@@ -12,7 +13,7 @@ const DepositPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = (location.state as LocationState | null) ?? null;
-  const { depositUnlocked, isLoading } = useAccountWorkflow();
+  const { depositUnlocked, isLoading, firebaseUserId, snapshot } = useAccountWorkflow();
 
   // Route guard: deposits stay inaccessible until onboarding has been approved.
   if (!isLoading && !depositUnlocked) {
@@ -36,6 +37,12 @@ const DepositPage = () => {
         <DepositSection
           onContinueOnboarding={() => navigate("/onboarding")}
           onOpenDashboard={() => navigate("/dashboard")}
+        />
+
+        {/* Real-time Deposit Status - Shows live updates from Firebase */}
+        <RealtimeDepositStatus
+          userId={firebaseUserId}
+          existingRequests={snapshot?.depositRequests || []}
         />
       </div>
     </JourneyShell>
