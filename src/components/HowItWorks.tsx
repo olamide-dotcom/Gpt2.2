@@ -7,7 +7,8 @@ const HowItWorks = () => (
     <div className="container mx-auto text-center">
       <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground">How It Works</h2>
       <p className="text-muted-foreground mt-3 max-w-lg mx-auto">
-        Landing leads into onboarding, and onboarding leads into deposits without breaking the your journey.
+        Everything moves in one easy flow: set up your account, get verified, start with the AI launch bot using the
+        starter balance, then fund when you are ready with an extra 10% on every approved deposit.
       </p>
 
       <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">

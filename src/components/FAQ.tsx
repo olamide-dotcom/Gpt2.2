@@ -5,7 +5,7 @@ const FAQ = () => (
   <section id="faq" className="scroll-mt-24 py-24 px-4">
     <div className="container mx-auto max-w-2xl text-center">
       <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground">Frequently Asked Questions</h2>
-      <p className="text-muted-foreground mt-3">Common questions answered with clearer, less misleading language</p>
+      <p className="text-muted-foreground mt-3">Quick answers before you get started</p>
 
       <Accordion type="single" collapsible className="mt-12 text-left">
         {faqs.map((faq, index) => (

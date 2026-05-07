@@ -4,24 +4,24 @@ const SiteFooter = () => (
   <footer className="border-t border-border py-8 px-4">
     <div className="container mx-auto flex flex-col items-center justify-between gap-4 text-sm text-muted-foreground md:flex-row">
       <span>
-        Copyright {new Date().getFullYear()} <span className="text-gold">gpt.2</span> TradeBot. Crypto trading and
-        client onboarding workflow.
+        Copyright {new Date().getFullYear()} <span className="text-gold">gpt.2</span> TradeBot. Account setup,
+        funding, and AI trading in one place.
       </span>
       <div className="flex flex-wrap gap-6">
         <Link to="/" className="transition-colors hover:text-foreground">
-          Landing
+          Home
         </Link>
         <Link to="/onboarding" className="transition-colors hover:text-foreground">
-          Onboarding
+          Setup
         </Link>
         <Link to="/deposit" className="transition-colors hover:text-foreground">
-          Deposit
+          Funding
+        </Link>
+        <Link to="/dashboard" className="transition-colors hover:text-foreground">
+          AI Trade Room
         </Link>
         <Link to="/withdraw" className="transition-colors hover:text-foreground">
           Withdraw
-        </Link>
-        <Link to="/dashboard" className="transition-colors hover:text-foreground">
-          Dashboard
         </Link>
       </div>
     </div>

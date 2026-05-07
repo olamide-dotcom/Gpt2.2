@@ -5,8 +5,8 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(404).send('Not found');
 
   if (!SUPABASE_URL || !SUPABASE_KEY) {
-    console.error('Supabase not configured');
-    return res.status(500).json({ error: 'Supabase not configured' });
+    console.warn('Supabase not configured; skipping optional request mirror');
+    return res.status(200).json({ ok: true, mirrored: false, reason: 'Supabase not configured' });
   }
 
   try {
@@ -26,11 +26,14 @@ export default async function handler(req, res) {
 
     const data = await resp.json();
 
-    if (!resp.ok) return res.status(502).json({ error: 'Supabase error', details: data });
+    if (!resp.ok) {
+      console.error('Supabase mirror failed', data);
+      return res.status(200).json({ ok: true, mirrored: false, reason: 'Supabase error', details: data });
+    }
 
-    return res.status(200).json({ ok: true, data });
+    return res.status(200).json({ ok: true, mirrored: true, data });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'error' });
+    return res.status(200).json({ ok: true, mirrored: false, reason: 'error' });
   }
 }

@@ -1,9 +1,16 @@
 import { useEffect } from "react";
 import { getWorkflowSnapshot } from "@/lib/account-workflow";
+import { useAppAuth } from "@/hooks/use-app-auth";
 
 // AutoSave: silently persist snapshot on visibility change / unload
 export default function AutoSave() {
+  const { isAuthenticated } = useAppAuth();
+
   useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
     const persist = () => {
       try {
         // getWorkflowSnapshot will read and persist the normalized snapshot synchronously
@@ -39,7 +46,7 @@ export default function AutoSave() {
       window.removeEventListener("pagehide", persist);
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
-  }, []);
+  }, [isAuthenticated]);
 
   return null;
 }

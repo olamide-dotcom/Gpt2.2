@@ -1,8 +1,12 @@
 import { strategies, type StrategyId } from "@/content/site";
 
 const STORAGE_KEY = "gpt2.tradebot.onboarding-deposit.v2";
-const BOT_TICK_INTERVAL_MS = 8_000;
+const BASE_BOT_TICK_INTERVAL_MS = 8_000;
 const MAX_SYNC_TICKS = 240;
+const MAX_BOT_EQUITY_HISTORY_POINTS = 72;
+const MAX_BOT_TRADE_HISTORY_ITEMS = 12;
+export const VERIFICATION_BONUS_USD = 5;
+export const DEPOSIT_BONUS_PERCENT = 10;
 export const MAX_BOT_GAIN_PERCENT = 30;
 export const MAX_BOT_LOSS_PERCENT = 15;
 
@@ -19,7 +23,7 @@ export interface OnboardingStep {
   description: string;
 }
 
-export type DepositTokenCode = "ETH" | "USDT" | "BTC";
+export type DepositTokenCode = "ETH" | "USDT" | "BTC" | "SOL";
 export type RefreshTrackingMode = "webhook" | "polling";
 export type BotLeverage = "1x" | "5x" | "10x" | "20x";
 export type BotRiskLevel = "low" | "medium" | "high";
@@ -78,6 +82,7 @@ export interface SimulatedDeposit {
   networkLabel: string;
   address: string;
   amountUsd: number;
+  source: string;
   txHash: string;
   creditedAt: string;
 }
@@ -112,11 +117,19 @@ export interface SimulateDepositCreditInput {
 }
 
 export type DepositRequestStatus = "pending_review" | "approved" | "rejected";
+export type BotTradeHistoryCloseReason =
+  | "active"
+  | "manual_stop"
+  | "withdrawn_to_main_wallet"
+  | "take_profit_hit"
+  | "stop_loss_hit";
 
 export interface WalletBalanceOverrideInput {
   mainWalletBalanceUsd?: number | null;
   botWalletBalanceUsd?: number | null;
 }
+
+export type DepositAddressOverrideInput = Partial<Record<DepositTokenCode, string | null>>;
 
 export interface SubmitDepositRequestInput {
   tokenCode: DepositTokenCode;
@@ -142,12 +155,44 @@ export interface DepositRequest {
   address: string;
   requestedAmountUsd: number;
   creditedAmountUsd: number | null;
+  depositBonusUsd: number | null;
+  totalCreditedAmountUsd: number | null;
   status: DepositRequestStatus;
   copiedAt: string | null;
   submittedAt: string;
   reviewedAt: string | null;
   approvalMessage: string | null;
   submittedByTelegramId?: string | null;
+}
+
+export interface BotEquityPoint {
+  id: string;
+  timestamp: string;
+  balanceUsd: number;
+  profitUsd: number;
+  profitLossPercent: number;
+  status: BotStatus;
+}
+
+export interface BotTradeHistoryEntry {
+  id: string;
+  sessionId: string;
+  strategyLabel: string;
+  tradeLabel: string;
+  leverage: BotLeverage;
+  riskLevel: BotRiskLevel;
+  allocatedAmountUsd: number;
+  entryBalanceUsd: number;
+  currentBalanceUsd: number;
+  profitUsd: number;
+  profitLossPercent: number;
+  openedAt: string;
+  lastUpdatedAt: string;
+  closedAt: string | null;
+  status: "running" | "closed";
+  closeReason: BotTradeHistoryCloseReason;
+  settledAmountUsd: number | null;
+  settledToMainWalletAt: string | null;
 }
 
 export interface TradingBotState {
@@ -165,6 +210,8 @@ export interface TradingBotState {
   lastUpdatedAt: string | null;
   sessionId: string | null;
   tickCount: number;
+  equityHistory: BotEquityPoint[];
+  tradeHistory: BotTradeHistoryEntry[];
 }
 
 export interface WorkflowSnapshot {
@@ -186,6 +233,7 @@ export interface WorkflowSnapshot {
   botWalletBalanceUsd: number;
   bonusUsd: number;
   bonusLocked: boolean;
+  bonusGrantedAt: string | null;
   idVerificationRequests: IdVerificationRequest[];
   dashboardUnlocked: boolean;
   bot: TradingBotState;
@@ -208,23 +256,23 @@ export interface IdVerificationRequest {
 export const onboardingSteps: OnboardingStep[] = [
   {
     id: "review-access-requirements",
-    title: "Review Access Requirements",
-    description: "Confirm supported jurisdictions, wallet-network rules, and crypto funding disclosures before deposit access is granted.",
+    title: "Review the basics",
+    description: "Confirm your country, account use, and a few quick funding rules before you continue.",
   },
   {
     id: "complete-identity-checks",
-    title: "Complete Identity Checks",
-    description: "Capture KYC details, document origin, and contact records that should stay linked to future crypto deposits.",
+    title: "Add your details",
+    description: "Tell us who you are so your account, funding page, and trade room stay linked to the right person.",
   },
   {
     id: "choose-strategy-track",
-    title: "Choose Strategy Track",
-    description: "Pick the crypto trading pace and monitoring style that matches the account's risk tolerance.",
+    title: "Pick your trading style",
+    description: "Choose the bot pace that feels right for you before you open your trade room.",
   },
   {
     id: "activate-account-workflows",
-    title: "Activate Account Workflows",
-    description: "Finalize alert routing, treasury handling, and wallet approval so deposit addresses can be assigned.",
+    title: "Finish and unlock",
+    description: "Approve your setup to open funding, receive your $5 starter balance, and unlock a 10% bonus on every approved deposit.",
   },
 ];
 
@@ -234,17 +282,17 @@ const depositWalletTemplates: Array<Omit<DepositWallet, "address" | "assignedAt"
     tokenName: "Ethereum",
     networkLabel: "ERC20",
     instructions: [
-      "Send only on the Ethereum mainnet shown in the assigned network label.",
-      "Transfer from a wallet you control so support can verify origin if a review is needed.",
+      "Send only on the Ethereum network shown on this card.",
+      "Use a wallet or exchange account you control so your transfer can be matched quickly.",
     ],
   },
   {
     tokenCode: "USDT",
     tokenName: "Tether USD",
-    networkLabel: "TRC20",
+    networkLabel: "ERC20",
     instructions: [
-      "Use the TRC20 network label shown here. Sending another network can delay manual review.",
-      "Include a transaction reference in your funding notes when treasury reconciliation is required.",
+      "Use the ERC20 network shown here. Sending from another network can delay your funding review.",
+      "Double-check the address before sending so your transfer lands on the correct chain.",
     ],
   },
   {
@@ -252,17 +300,46 @@ const depositWalletTemplates: Array<Omit<DepositWallet, "address" | "assignedAt"
     tokenName: "Bitcoin",
     networkLabel: "Bitcoin",
     instructions: [
-      "Send only native BTC to this address. Wrapped or bridged assets should not be used here.",
-      "Wait for the required network confirmations before expecting the balance to appear in your account workflow.",
+      "Send only native BTC to this address.",
+      "Wait for network confirmations before expecting the balance to appear in your account.",
+    ],
+  },
+  {
+    tokenCode: "SOL",
+    tokenName: "Solana",
+    networkLabel: "Solana",
+    instructions: [
+      "Send only native SOL on the Solana network.",
+      "Check the address carefully before sending because Solana transfers settle quickly.",
     ],
   },
 ];
 
+const FIXED_DEPOSIT_ADDRESSES: Record<DepositTokenCode, string> = {
+  ETH: "0xF3A288bba1289382546033860bF227e91ccA09b8",
+  USDT: "0xF3A288bba1289382546033860bF227e91ccA09b8",
+  BTC: "bc1qceer3q42etntav23x7mg6y9ntgq5yg5n8j4ysy",
+  SOL: "8UryNXnqqA9vGgpNChX5m6TVCnHbeC8GbpVmeaGxHVvW",
+};
+
 const leverageMultipliers: Record<BotLeverage, number> = {
-  "1x": 0.35,
-  "5x": 0.7,
-  "10x": 0.95,
-  "20x": 1.2,
+  "1x": 0.55,
+  "5x": 0.9,
+  "10x": 1.18,
+  "20x": 1.45,
+};
+
+const leverageCadenceMultipliers: Record<BotLeverage, number> = {
+  "1x": 1.35,
+  "5x": 1,
+  "10x": 0.72,
+  "20x": 0.46,
+};
+
+const riskCadenceMultipliers: Record<BotRiskLevel, number> = {
+  low: 1.08,
+  medium: 1,
+  high: 0.84,
 };
 
 const riskVolatility: Record<BotRiskLevel, number> = {
@@ -277,10 +354,53 @@ const riskBaseReturn: Record<BotRiskLevel, number> = {
   high: 0.024,
 };
 
+const riskReturnMultipliers: Record<BotRiskLevel, number> = {
+  low: 0.92,
+  medium: 1,
+  high: 1.14,
+};
+
 const strategyDrift: Record<StrategyId, number> = {
   "conservative-growth": 0.004,
   "balanced-portfolio": 0.008,
   "aggressive-growth": 0.012,
+};
+
+const clampNumber = (value: number, minimum: number, maximum: number) =>
+  Math.min(maximum, Math.max(minimum, value));
+
+export const getBotExecutionCadenceMs = (
+  settings: Pick<StartTradingBotInput, "leverage" | "riskLevel"> | null | undefined,
+) => {
+  if (!settings) {
+    return BASE_BOT_TICK_INTERVAL_MS;
+  }
+
+  const nextCadence = BASE_BOT_TICK_INTERVAL_MS
+    * leverageCadenceMultipliers[settings.leverage]
+    * riskCadenceMultipliers[settings.riskLevel];
+
+  return Math.round(clampNumber(nextCadence, 2_400, 12_000) / 100) * 100;
+};
+
+export const getBotExecutionSpeedLabel = (
+  settings: Pick<StartTradingBotInput, "leverage" | "riskLevel"> | null | undefined,
+) => {
+  const cadenceMs = getBotExecutionCadenceMs(settings);
+
+  if (cadenceMs <= 3_000) {
+    return "Hyper";
+  }
+
+  if (cadenceMs <= 4_800) {
+    return "Turbo";
+  }
+
+  if (cadenceMs <= 7_000) {
+    return "Adaptive";
+  }
+
+  return "Measured";
 };
 
 let memoryStorage: string | null = null;
@@ -325,11 +445,19 @@ const defaultBotState = (): TradingBotState => ({
   lastUpdatedAt: null,
   sessionId: null,
   tickCount: 0,
+  equityHistory: [],
+  tradeHistory: [],
 });
 
 const nowIso = () => new Date().toISOString();
 
 const roundCurrency = (value: number) => Math.round(value * 100) / 100;
+
+export const calculateDepositBonusUsd = (value: number) =>
+  roundCurrency((Number.isFinite(value) ? value : 0) * (DEPOSIT_BONUS_PERCENT / 100));
+
+export const getDepositTotalWithBonusUsd = (value: number) =>
+  roundCurrency((Number.isFinite(value) ? value : 0) + calculateDepositBonusUsd(value));
 
 const getLocalStorage = (): Storage | null => {
   if (typeof window === "undefined") {
@@ -410,6 +538,9 @@ const defaultSnapshot = (): WorkflowSnapshot => ({
   simulatedDeposits: [],
   mainWalletBalanceUsd: 0,
   botWalletBalanceUsd: 0,
+  bonusUsd: 0,
+  bonusLocked: false,
+  bonusGrantedAt: null,
   idVerificationRequests: [],
   dashboardUnlocked: false,
   bot: defaultBotState(),
@@ -454,10 +585,39 @@ const normalizeSnapshot = (snapshot: Partial<WorkflowSnapshot> | null | undefine
     profitUsd: sanitizeNumber(snapshot.bot?.profitUsd),
     profitLossPercent: sanitizeNumber(snapshot.bot?.profitLossPercent),
     tickCount: Number.isFinite(snapshot.bot?.tickCount) ? Number(snapshot.bot?.tickCount) : 0,
+    equityHistory: (snapshot.bot?.equityHistory ?? []).map((point) => ({
+      id: point.id,
+      timestamp: point.timestamp,
+      balanceUsd: sanitizeNumber(point.balanceUsd),
+      profitUsd: sanitizeNumber(point.profitUsd),
+      profitLossPercent: sanitizeNumber(point.profitLossPercent),
+      status: point.status,
+    })),
+    tradeHistory: (snapshot.bot?.tradeHistory ?? []).map((entry) => ({
+      id: entry.id,
+      sessionId: entry.sessionId,
+      strategyLabel: entry.strategyLabel,
+      tradeLabel: entry.tradeLabel,
+      leverage: entry.leverage,
+      riskLevel: entry.riskLevel,
+      allocatedAmountUsd: sanitizeNumber(entry.allocatedAmountUsd),
+      entryBalanceUsd: sanitizeNumber(entry.entryBalanceUsd),
+      currentBalanceUsd: sanitizeNumber(entry.currentBalanceUsd),
+      profitUsd: sanitizeNumber(entry.profitUsd),
+      profitLossPercent: sanitizeNumber(entry.profitLossPercent),
+      openedAt: entry.openedAt,
+      lastUpdatedAt: entry.lastUpdatedAt,
+      closedAt: entry.closedAt ?? null,
+      status: entry.status === "closed" ? "closed" : "running",
+      closeReason: entry.closeReason ?? (entry.status === "closed" ? "manual_stop" : "active"),
+      settledAmountUsd: entry.settledAmountUsd == null ? null : sanitizeNumber(entry.settledAmountUsd),
+      settledToMainWalletAt: entry.settledToMainWalletAt ?? null,
+    })),
   };
 
   const mainWalletBalanceUsd = sanitizeNumber(snapshot.mainWalletBalanceUsd);
-  const botWalletBalanceUsd = normalizedBot.currentBalanceUsd || sanitizeNumber(snapshot.botWalletBalanceUsd);
+  const storedBotWalletBalanceUsd = sanitizeNumber(snapshot.botWalletBalanceUsd);
+  const botWalletBalanceUsd = normalizedBot.active ? normalizedBot.currentBalanceUsd : storedBotWalletBalanceUsd;
 
   return {
     ...fallback,
@@ -489,6 +649,9 @@ const normalizeSnapshot = (snapshot: Partial<WorkflowSnapshot> | null | undefine
       ...request,
       requestedAmountUsd: sanitizeNumber(request.requestedAmountUsd),
       creditedAmountUsd: request.creditedAmountUsd == null ? null : sanitizeNumber(request.creditedAmountUsd),
+      depositBonusUsd: request.depositBonusUsd == null ? null : sanitizeNumber(request.depositBonusUsd),
+      totalCreditedAmountUsd:
+        request.totalCreditedAmountUsd == null ? null : sanitizeNumber(request.totalCreditedAmountUsd),
       status: normalizeDepositRequestStatus(request.status),
       copiedAt: request.copiedAt ?? null,
       reviewedAt: request.reviewedAt ?? null,
@@ -502,9 +665,13 @@ const normalizeSnapshot = (snapshot: Partial<WorkflowSnapshot> | null | undefine
     simulatedDeposits: (snapshot.simulatedDeposits ?? fallback.simulatedDeposits).map((deposit) => ({
       ...deposit,
       amountUsd: sanitizeNumber(deposit.amountUsd),
+      source: deposit.source ?? "deposit",
     })),
     mainWalletBalanceUsd,
     botWalletBalanceUsd,
+    bonusUsd: sanitizeNumber(snapshot.bonusUsd),
+    bonusLocked: snapshot.bonusLocked === true,
+    bonusGrantedAt: snapshot.bonusGrantedAt ?? null,
     dashboardUnlocked: shouldUnlockDashboard(snapshot),
     bot: normalizedBot,
     updatedAt: snapshot.updatedAt ?? fallback.updatedAt,
@@ -588,6 +755,11 @@ const buildUsdtAddress = (seed: string) => `T${seededString(seed, 33, "123456789
 const buildBtcAddress = (seed: string) => `bc1q${seededString(seed, 38, "qpzry9x8gf2tvdw0s3jn54khce6mua7l")}`;
 
 const buildWalletAddress = (userId: string, tokenCode: DepositTokenCode) => {
+  const fixedAddress = FIXED_DEPOSIT_ADDRESSES[tokenCode];
+  if (fixedAddress) {
+    return fixedAddress;
+  }
+
   const seed = `${userId}:${tokenCode}`;
 
   switch (tokenCode) {
@@ -597,6 +769,8 @@ const buildWalletAddress = (userId: string, tokenCode: DepositTokenCode) => {
       return buildUsdtAddress(seed);
     case "BTC":
       return buildBtcAddress(seed);
+    case "SOL":
+      return FIXED_DEPOSIT_ADDRESSES.SOL;
   }
 };
 
@@ -612,6 +786,28 @@ const createDepositAddresses = (snapshot: WorkflowSnapshot) => {
   }));
 };
 
+export const applyDepositAddressOverridesToSnapshot = (
+  snapshot: WorkflowSnapshot,
+  overrides: DepositAddressOverrideInput,
+): WorkflowSnapshot => {
+  const baseAddresses = createDepositAddresses(snapshot);
+
+  return {
+    ...snapshot,
+    depositAddresses: baseAddresses.map((wallet) => {
+      const nextAddress = overrides[wallet.tokenCode];
+      const trimmedAddress = typeof nextAddress === "string" ? nextAddress.trim() : "";
+
+      return trimmedAddress
+        ? {
+            ...wallet,
+            address: trimmedAddress,
+          }
+        : wallet;
+    }),
+  };
+};
+
 const getStrategyLabel = (strategyId: StrategyId | null) =>
   strategies.find((strategy) => strategy.id === strategyId)?.title ?? "AI Insider Flow";
 
@@ -620,12 +816,140 @@ const getActiveTradeLabel = (snapshot: WorkflowSnapshot, riskLevel: BotRiskLevel
 
   switch (riskLevel) {
     case "low":
-      return `${strategyLabel} / BTC stability ladder`;
+      return `${strategyLabel} / Fresh listing scout`;
     case "medium":
-      return `${strategyLabel} / ETH momentum rotation`;
+      return `${strategyLabel} / Launch momentum tracker`;
     case "high":
-      return `${strategyLabel} / Insider signal breakout`;
+      return `${strategyLabel} / Release breakout sniper`;
   }
+};
+
+const appendBotEquityPoint = (history: BotEquityPoint[], point: BotEquityPoint) => {
+  const lastPoint = history.at(-1);
+
+  if (lastPoint?.timestamp === point.timestamp) {
+    return [...history.slice(0, -1), point].slice(-MAX_BOT_EQUITY_HISTORY_POINTS);
+  }
+
+  return [...history, point].slice(-MAX_BOT_EQUITY_HISTORY_POINTS);
+};
+
+const createBotEquityPoint = (
+  sessionId: string,
+  timestamp: string,
+  balanceUsd: number,
+  startingBalanceUsd: number,
+  status: BotStatus,
+  sequence: number,
+): BotEquityPoint => {
+  const profitUsd = roundCurrency(balanceUsd - startingBalanceUsd);
+  const profitLossPercent = startingBalanceUsd > 0 ? roundCurrency((profitUsd / startingBalanceUsd) * 100) : 0;
+
+  return {
+    id: `${sessionId}:${sequence}`,
+    timestamp,
+    balanceUsd: roundCurrency(balanceUsd),
+    profitUsd,
+    profitLossPercent,
+    status,
+  };
+};
+
+const createBotTradeHistoryEntry = (
+  sessionId: string,
+  input: StartTradingBotInput & { strategyLabel: string },
+  tradeLabel: string,
+  openedAt: string,
+  entryBalanceUsd: number,
+): BotTradeHistoryEntry => ({
+  id: createEntityId("bot-trade"),
+  sessionId,
+  strategyLabel: input.strategyLabel,
+  tradeLabel,
+  leverage: input.leverage,
+  riskLevel: input.riskLevel,
+  allocatedAmountUsd: roundCurrency(input.allocationAmountUsd),
+  entryBalanceUsd: roundCurrency(entryBalanceUsd),
+  currentBalanceUsd: roundCurrency(entryBalanceUsd),
+  profitUsd: 0,
+  profitLossPercent: 0,
+  openedAt,
+  lastUpdatedAt: openedAt,
+  closedAt: null,
+  status: "running",
+  closeReason: "active",
+  settledAmountUsd: null,
+  settledToMainWalletAt: null,
+});
+
+const updateBotTradeHistoryEntry = (
+  history: BotTradeHistoryEntry[],
+  sessionId: string | null,
+  updater: (entry: BotTradeHistoryEntry) => BotTradeHistoryEntry,
+) => {
+  if (!sessionId) {
+    return history;
+  }
+
+  const index = history.findIndex((entry) => entry.sessionId === sessionId);
+
+  if (index === -1) {
+    return history;
+  }
+
+  const nextHistory = [...history];
+  nextHistory[index] = updater(nextHistory[index]);
+  return nextHistory;
+};
+
+const settleBotBalanceToMainWallet = (
+  snapshot: WorkflowSnapshot,
+  input: {
+    closeReason?: BotTradeHistoryCloseReason;
+    settledAmountUsd?: number;
+    settledAt?: string;
+    status?: BotStatus;
+  } = {},
+) => {
+  const settledAt = input.settledAt ?? nowIso();
+  const settledAmountUsd = roundCurrency(input.settledAmountUsd ?? snapshot.botWalletBalanceUsd ?? snapshot.bot.currentBalanceUsd);
+
+  if (settledAmountUsd <= 0) {
+    return ensureDashboardState(snapshot);
+  }
+
+  const startingBalanceUsd = snapshot.bot.startingBalanceUsd || settledAmountUsd;
+  const currentBalanceUsd = roundCurrency(snapshot.bot.currentBalanceUsd || settledAmountUsd);
+  const profitUsd = roundCurrency(currentBalanceUsd - startingBalanceUsd);
+  const profitLossPercent = startingBalanceUsd > 0 ? roundCurrency((profitUsd / startingBalanceUsd) * 100) : 0;
+
+  return ensureDashboardState({
+    ...snapshot,
+    mainWalletBalanceUsd: roundCurrency(snapshot.mainWalletBalanceUsd + settledAmountUsd),
+    botWalletBalanceUsd: 0,
+    bot: {
+      ...snapshot.bot,
+      active: false,
+      status: input.status ?? snapshot.bot.status,
+      stoppedAt: snapshot.bot.stoppedAt ?? settledAt,
+      lastUpdatedAt: settledAt,
+      currentBalanceUsd,
+      profitUsd,
+      profitLossPercent,
+      tradeHistory: updateBotTradeHistoryEntry(snapshot.bot.tradeHistory, snapshot.bot.sessionId, (entry) => ({
+        ...entry,
+        currentBalanceUsd,
+        profitUsd,
+        profitLossPercent,
+        lastUpdatedAt: settledAt,
+        closedAt: entry.closedAt ?? settledAt,
+        status: "closed",
+        closeReason: entry.closeReason === "active" ? input.closeReason ?? "withdrawn_to_main_wallet" : entry.closeReason,
+        settledAmountUsd,
+        settledToMainWalletAt: settledAt,
+      })),
+    },
+  });
 };
 
 const applyWalletBalanceOverrides = (snapshot: WorkflowSnapshot, overrides: WalletBalanceOverrideInput = {}) => {
@@ -658,15 +982,50 @@ const applyWalletBalanceOverrides = (snapshot: WorkflowSnapshot, overrides: Wall
   });
 };
 
-const ensureDashboardState = (snapshot: WorkflowSnapshot): WorkflowSnapshot => ({
-  ...snapshot,
-  botWalletBalanceUsd: roundCurrency(snapshot.bot.currentBalanceUsd),
-  dashboardUnlocked:
-    snapshot.dashboardUnlocked ||
-    snapshot.mainWalletBalanceUsd > 0 ||
-    snapshot.bot.currentBalanceUsd > 0 ||
-    snapshot.simulatedDeposits.length > 0,
-});
+const hasConfirmedDepositCreditInternal = (snapshot: WorkflowSnapshot) =>
+  snapshot.depositRequests.some((request) => request.status === "approved") ||
+  snapshot.simulatedDeposits.some((deposit) => deposit.source !== "verification bonus");
+
+const ensureVerificationBonus = (snapshot: WorkflowSnapshot): WorkflowSnapshot => {
+  if (snapshot.approvalStatus !== "approved") {
+    return snapshot;
+  }
+
+  const existingBonusUsd = sanitizeNumber(snapshot.bonusUsd);
+  const nextBonusUsd = existingBonusUsd > 0 ? existingBonusUsd : VERIFICATION_BONUS_USD;
+  const totalVisibleBalance = roundCurrency(snapshot.mainWalletBalanceUsd + snapshot.botWalletBalanceUsd);
+
+  if (snapshot.bonusGrantedAt || (existingBonusUsd > 0 && totalVisibleBalance >= existingBonusUsd)) {
+    return {
+      ...snapshot,
+      bonusUsd: nextBonusUsd,
+      bonusGrantedAt: snapshot.bonusGrantedAt ?? snapshot.approvedAt ?? nowIso(),
+    };
+  }
+
+  return {
+    ...snapshot,
+    mainWalletBalanceUsd: roundCurrency(snapshot.mainWalletBalanceUsd + nextBonusUsd),
+    bonusUsd: nextBonusUsd,
+    bonusGrantedAt: snapshot.approvedAt ?? nowIso(),
+  };
+};
+
+const ensureDashboardState = (snapshot: WorkflowSnapshot): WorkflowSnapshot => {
+  const bonusLocked = snapshot.bonusUsd > 0 ? !hasConfirmedDepositCreditInternal(snapshot) : false;
+  const botWalletBalanceUsd = snapshot.bot.active ? snapshot.bot.currentBalanceUsd : snapshot.botWalletBalanceUsd;
+
+  return {
+    ...snapshot,
+    bonusLocked,
+    botWalletBalanceUsd: roundCurrency(botWalletBalanceUsd),
+    dashboardUnlocked:
+      snapshot.dashboardUnlocked ||
+      snapshot.mainWalletBalanceUsd > 0 ||
+      snapshot.bot.currentBalanceUsd > 0 ||
+      snapshot.simulatedDeposits.length > 0,
+  };
+};
 
 const syncTradingBotState = (snapshot: WorkflowSnapshot, now = new Date()): WorkflowSnapshot => {
   if (!snapshot.bot.active || !snapshot.bot.tradingSettings || !snapshot.bot.lastUpdatedAt || !snapshot.bot.sessionId) {
@@ -675,7 +1034,8 @@ const syncTradingBotState = (snapshot: WorkflowSnapshot, now = new Date()): Work
 
   const lastUpdatedAt = new Date(snapshot.bot.lastUpdatedAt);
   const elapsedMs = now.getTime() - lastUpdatedAt.getTime();
-  const elapsedTicks = Math.floor(elapsedMs / BOT_TICK_INTERVAL_MS);
+  const tickIntervalMs = getBotExecutionCadenceMs(snapshot.bot.tradingSettings);
+  const elapsedTicks = Math.floor(elapsedMs / tickIntervalMs);
 
   if (elapsedTicks <= 0) {
     return snapshot;
@@ -687,45 +1047,101 @@ const syncTradingBotState = (snapshot: WorkflowSnapshot, now = new Date()): Work
   const { leverage, riskLevel, stopLossPercent, takeProfitPercent } = snapshot.bot.tradingSettings;
   const cappedStopLossPercent = Math.min(stopLossPercent, MAX_BOT_LOSS_PERCENT);
   const cappedTakeProfitPercent = Math.min(takeProfitPercent, MAX_BOT_GAIN_PERCENT);
+  const executionBoost = BASE_BOT_TICK_INTERVAL_MS / tickIntervalMs;
 
   let currentBalanceUsd = snapshot.bot.currentBalanceUsd;
   let tickCount = snapshot.bot.tickCount;
   let active = snapshot.bot.active;
   let status: BotStatus = "running";
   let stoppedAt = snapshot.bot.stoppedAt;
+  let processedTicks = 0;
+  let equityHistory = [...snapshot.bot.equityHistory];
 
   // Keep the simulation deterministic so refreshes and tests converge on the same wallet state.
   for (let index = 0; index < appliedTicks; index += 1) {
-    const noise = seedToSignedUnit(`${snapshot.bot.sessionId}:${tickCount + index}`);
-    const changePercent = (riskBaseReturn[riskLevel] + strategyBonus + noise * riskVolatility[riskLevel]) * leverageMultipliers[leverage];
+    const sequence = tickCount + index + 1;
+    const noise = seedToSignedUnit(`${snapshot.bot.sessionId}:${sequence}`);
+    const cycleLength = riskLevel === "high" ? 16 : riskLevel === "medium" ? 20 : 26;
+    const cyclePosition = ((sequence - 1) % cycleLength) / cycleLength;
+    const launchBias =
+      cyclePosition < 0.16 ? 0.055
+      : cyclePosition < 0.36 ? 0.026
+      : cyclePosition < 0.58 ? 0.008
+      : cyclePosition < 0.82 ? -0.018
+      : -0.04;
+    const flowWave = Math.sin(sequence / (riskLevel === "high" ? 1.9 : riskLevel === "medium" ? 2.6 : 3.3)) * 0.016;
+    const hypeWave = Math.cos(sequence / (riskLevel === "high" ? 3.2 : riskLevel === "medium" ? 4.1 : 5.2)) * 0.011;
+    const bearishFade = cyclePosition > 0.72 ? -0.012 : 0;
+    const pullbackPulse = sequence % (riskLevel === "high" ? 5 : 7) === 0 ? -0.028 : 0.01;
+    const aiBias = launchBias + flowWave + hypeWave + bearishFade + pullbackPulse;
+    const changePercent =
+      (riskBaseReturn[riskLevel] * (cyclePosition < 0.42 ? 1 : 0.45) + strategyBonus + aiBias + noise * riskVolatility[riskLevel])
+      * leverageMultipliers[leverage]
+      * riskReturnMultipliers[riskLevel]
+      * Math.sqrt(executionBoost);
     currentBalanceUsd = roundCurrency(Math.max(0, currentBalanceUsd * (1 + changePercent / 100)));
+    processedTicks += 1;
+    const tickTimestamp = new Date(lastUpdatedAt.getTime() + processedTicks * tickIntervalMs).toISOString();
 
-    const profitLossPercent = startingBalanceUsd > 0 ? ((currentBalanceUsd - startingBalanceUsd) / startingBalanceUsd) * 100 : 0;
+    let profitLossPercent = startingBalanceUsd > 0 ? ((currentBalanceUsd - startingBalanceUsd) / startingBalanceUsd) * 100 : 0;
 
     if (profitLossPercent >= cappedTakeProfitPercent) {
       currentBalanceUsd = roundCurrency(startingBalanceUsd * (1 + cappedTakeProfitPercent / 100));
+      profitLossPercent = cappedTakeProfitPercent;
       active = false;
       status = "take_profit_hit";
-      stoppedAt = now.toISOString();
-      break;
-    }
-
-    if (profitLossPercent <= -cappedStopLossPercent) {
+      stoppedAt = tickTimestamp;
+    } else if (profitLossPercent <= -cappedStopLossPercent) {
       currentBalanceUsd = roundCurrency(startingBalanceUsd * (1 - cappedStopLossPercent / 100));
+      profitLossPercent = -cappedStopLossPercent;
       active = false;
       status = "stop_loss_hit";
-      stoppedAt = now.toISOString();
+      stoppedAt = tickTimestamp;
+    }
+
+    equityHistory = appendBotEquityPoint(
+      equityHistory,
+      createBotEquityPoint(
+        snapshot.bot.sessionId,
+        tickTimestamp,
+        currentBalanceUsd,
+        startingBalanceUsd,
+        active ? "running" : status,
+        tickCount + processedTicks,
+      ),
+    );
+
+    if (!active) {
       break;
     }
   }
 
-  tickCount += appliedTicks;
+  tickCount += processedTicks;
 
   const profitUsd = roundCurrency(currentBalanceUsd - startingBalanceUsd);
   const profitLossPercent = startingBalanceUsd > 0 ? roundCurrency(((currentBalanceUsd - startingBalanceUsd) / startingBalanceUsd) * 100) : 0;
+  const lastHistoryTimestamp =
+    processedTicks > 0
+      ? new Date(lastUpdatedAt.getTime() + processedTicks * tickIntervalMs).toISOString()
+      : snapshot.bot.lastUpdatedAt;
+  const tradeHistory = updateBotTradeHistoryEntry(snapshot.bot.tradeHistory, snapshot.bot.sessionId, (entry) => ({
+    ...entry,
+    currentBalanceUsd,
+    profitUsd,
+    profitLossPercent,
+    lastUpdatedAt: lastHistoryTimestamp,
+    status: active ? "running" : "closed",
+    closedAt: active ? entry.closedAt : stoppedAt ?? lastHistoryTimestamp,
+    closeReason: active
+      ? "active"
+      : status === "take_profit_hit"
+        ? "take_profit_hit"
+        : "stop_loss_hit",
+  }));
 
-  return ensureDashboardState({
+  const nextSnapshot = {
     ...snapshot,
+    botWalletBalanceUsd: currentBalanceUsd,
     bot: {
       ...snapshot.bot,
       active,
@@ -734,10 +1150,23 @@ const syncTradingBotState = (snapshot: WorkflowSnapshot, now = new Date()): Work
       profitUsd,
       profitLossPercent,
       tickCount,
-      lastUpdatedAt: new Date(lastUpdatedAt.getTime() + appliedTicks * BOT_TICK_INTERVAL_MS).toISOString(),
+      lastUpdatedAt: lastHistoryTimestamp,
       stoppedAt,
+      equityHistory,
+      tradeHistory,
     },
-  });
+  };
+
+  if (!active && (status === "take_profit_hit" || status === "stop_loss_hit")) {
+    return settleBotBalanceToMainWallet(nextSnapshot, {
+      closeReason: status === "take_profit_hit" ? "take_profit_hit" : "stop_loss_hit",
+      settledAmountUsd: currentBalanceUsd,
+      settledAt: stoppedAt ?? lastHistoryTimestamp,
+      status,
+    });
+  }
+
+  return ensureDashboardState(nextSnapshot);
 };
 
 const creditApprovedDeposit = (
@@ -748,11 +1177,14 @@ const creditApprovedDeposit = (
   txHash: string,
   creditedAt: string,
   incrementMainWalletBalance = true,
-) =>
-  ensureDashboardState({
+) => {
+  const depositAmountUsd = sanitizeNumber(amountUsd);
+  const totalCreditedAmountUsd = getDepositTotalWithBonusUsd(depositAmountUsd);
+
+  return ensureDashboardState({
     ...snapshot,
     mainWalletBalanceUsd: incrementMainWalletBalance
-      ? roundCurrency(snapshot.mainWalletBalanceUsd + amountUsd)
+      ? roundCurrency(snapshot.mainWalletBalanceUsd + totalCreditedAmountUsd)
       : snapshot.mainWalletBalanceUsd,
     simulatedDeposits: [
       {
@@ -761,7 +1193,8 @@ const creditApprovedDeposit = (
         tokenName: wallet.tokenName,
         networkLabel: wallet.networkLabel,
         address: wallet.address,
-        amountUsd,
+        amountUsd: depositAmountUsd,
+        source,
         txHash,
         creditedAt,
       },
@@ -773,7 +1206,7 @@ const creditApprovedDeposit = (
         tokenCode: wallet.tokenCode,
         networkLabel: wallet.networkLabel,
         address: wallet.address,
-        amount: amountUsd.toFixed(2),
+        amount: depositAmountUsd.toFixed(2),
         status: "confirmed",
         source,
         txHash,
@@ -782,9 +1215,10 @@ const creditApprovedDeposit = (
       ...snapshot.transactions,
     ],
   });
+};
 
 export const createWorkflowSnapshot = (snapshot?: Partial<WorkflowSnapshot> | null): WorkflowSnapshot => {
-  const normalizedSnapshot = normalizeSnapshot(snapshot);
+  const normalizedSnapshot = ensureVerificationBonus(normalizeSnapshot(snapshot));
   const withAddresses =
     normalizedSnapshot.approvalStatus === "approved" && normalizedSnapshot.depositAddresses.length === 0
       ? {
@@ -793,7 +1227,7 @@ export const createWorkflowSnapshot = (snapshot?: Partial<WorkflowSnapshot> | nu
         }
       : normalizedSnapshot;
 
-  return syncTradingBotState(withAddresses);
+  return ensureDashboardState(syncTradingBotState(withAddresses));
 };
 
 const persistSnapshot = (snapshot: WorkflowSnapshot) => {
@@ -829,7 +1263,7 @@ export const rebaseWorkflowSnapshot = (
 const updateSnapshot = async (updater: (snapshot: WorkflowSnapshot) => WorkflowSnapshot) => {
   const currentSnapshot = readStoredSnapshot();
   const nextSnapshot = updater(currentSnapshot);
-  return nextSnapshot === currentSnapshot ? currentSnapshot : persistSnapshot(nextSnapshot);
+  return nextSnapshot === currentSnapshot ? currentSnapshot : persistSnapshot(createWorkflowSnapshot(nextSnapshot));
 };
 
 export const clearWorkflowStorage = () => {
@@ -849,6 +1283,16 @@ export const isDepositUnlocked = (snapshot: WorkflowSnapshot) => snapshot.approv
 
 export const isDashboardUnlocked = (snapshot: WorkflowSnapshot) =>
   snapshot.dashboardUnlocked || snapshot.simulatedDeposits.length > 0 || getTotalWalletBalance(snapshot) > 0;
+
+export const hasConfirmedDepositCredit = (snapshot: WorkflowSnapshot) => hasConfirmedDepositCreditInternal(snapshot);
+
+export const canMoveBotBalanceToMainWallet = (snapshot: WorkflowSnapshot) =>
+  snapshot.botWalletBalanceUsd > 0;
+
+export const getWithdrawableBalance = (snapshot: WorkflowSnapshot) =>
+  hasConfirmedDepositCreditInternal(snapshot)
+    ? Math.max(0, snapshot.mainWalletBalanceUsd - (snapshot.bonusLocked ? snapshot.bonusUsd : 0))
+    : 0;
 
 export const truncateAddress = (value: string, leading = 6, trailing = 6) =>
   value.length <= leading + trailing + 3 ? value : `${value.slice(0, leading)}...${value.slice(-trailing)}`;
@@ -877,6 +1321,9 @@ export const getWorkflowSnapshot = async () => {
 
 export const setCurrentWorkflowStep = async (stepId: OnboardingStepId) =>
   updateSnapshot((snapshot) => (canOpenWorkflowStep(snapshot, stepId) ? { ...snapshot, currentStepId: stepId } : snapshot));
+
+export const setDepositAddresses = async (input: DepositAddressOverrideInput) =>
+  updateSnapshot((snapshot) => applyDepositAddressOverridesToSnapshot(snapshot, input));
 
 export const saveReviewAccessRequirements = async (input: ReviewRequirementsInput) =>
   updateSnapshot((snapshot) => {
@@ -932,9 +1379,6 @@ export const activateAccountWorkflows = async (input: ActivationInput) =>
       approvedAt: nowIso(),
       currentStepId: "activate-account-workflows",
       depositAddresses: createDepositAddresses(snapshot),
-      // grant demo bonus on activation; keep it locked until a deposit + active trading
-      bonusUsd: roundCurrency((snapshot.bonusUsd ?? 0) + 5),
-      bonusLocked: true,
     };
   });
 
@@ -1002,12 +1446,14 @@ export const submitDepositRequest = async (input: SubmitDepositRequestInput) =>
           address: depositWallet.address,
           requestedAmountUsd: amountUsd,
           creditedAmountUsd: null,
+          depositBonusUsd: null,
+          totalCreditedAmountUsd: null,
           status: "pending_review",
           copiedAt: input.copiedAt ?? null,
           submittedByTelegramId: input.submittedByTelegramId ?? null,
           submittedAt: nowIso(),
           reviewedAt: null,
-          approvalMessage: "Awaiting manual review.",
+          approvalMessage: `Awaiting manual review. Approved deposits receive a ${DEPOSIT_BONUS_PERCENT}% bonus.`,
         },
         ...snapshot.depositRequests,
       ],
@@ -1060,10 +1506,12 @@ export const applyManualDepositReviewToSnapshot = (
 
   const reviewedAt = nowIso();
   const creditedAmountUsd = sanitizeNumber(input.creditedAmountUsd ?? request.requestedAmountUsd);
+  const depositBonusUsd = calculateDepositBonusUsd(creditedAmountUsd);
+  const totalCreditedAmountUsd = getDepositTotalWithBonusUsd(creditedAmountUsd);
   const approvalMessage =
     input.approvalMessage?.trim() ||
     (input.status === "approved"
-      ? "Deposit confirmed manually and credited to the wallet."
+      ? `Deposit confirmed manually. ${DEPOSIT_BONUS_PERCENT}% bonus added to your balance.`
       : "Deposit request rejected during manual review.");
 
   let nextSnapshot: WorkflowSnapshot = {
@@ -1074,6 +1522,8 @@ export const applyManualDepositReviewToSnapshot = (
             ...item,
             status: input.status,
             creditedAmountUsd: input.status === "approved" ? creditedAmountUsd : null,
+            depositBonusUsd: input.status === "approved" ? depositBonusUsd : null,
+            totalCreditedAmountUsd: input.status === "approved" ? totalCreditedAmountUsd : null,
             reviewedAt,
             approvalMessage,
           }
@@ -1122,34 +1572,39 @@ export interface ManualIdReviewInput {
   approvalMessage?: string;
 }
 
+export const applyManualIdReviewToSnapshot = (
+  currentSnapshot: WorkflowSnapshot,
+  input: ManualIdReviewInput,
+): WorkflowSnapshot => {
+  const snapshot = syncTradingBotState(currentSnapshot);
+  const request = snapshot.idVerificationRequests.find((item) => item.id === input.requestId);
+
+  if (!request || request.status !== "pending_review") {
+    return snapshot;
+  }
+
+  const reviewedAt = nowIso();
+  const approvalMessage = input.approvalMessage?.trim() || (input.status === "approved" ? "ID approved." : "ID rejected.");
+
+  const nextSnapshot: WorkflowSnapshot = {
+    ...snapshot,
+    idVerificationRequests: snapshot.idVerificationRequests.map((item) =>
+      item.id === request.id
+        ? {
+            ...item,
+            status: input.status,
+            reviewedAt,
+            approvalMessage,
+          }
+        : item,
+    ),
+  };
+
+  return ensureDashboardState(nextSnapshot);
+};
+
 export const applyManualIdReview = async (input: ManualIdReviewInput) =>
-  updateSnapshot((currentSnapshot) => {
-    const snapshot = syncTradingBotState(currentSnapshot);
-    const request = snapshot.idVerificationRequests.find((item) => item.id === input.requestId);
-
-    if (!request || request.status !== "pending_review") {
-      return snapshot;
-    }
-
-    const reviewedAt = nowIso();
-    const approvalMessage = input.approvalMessage?.trim() || (input.status === "approved" ? "ID approved." : "ID rejected.");
-
-    const nextSnapshot: WorkflowSnapshot = {
-      ...snapshot,
-      idVerificationRequests: snapshot.idVerificationRequests.map((item) =>
-        item.id === request.id
-          ? {
-              ...item,
-              status: input.status,
-              reviewedAt,
-              approvalMessage,
-            }
-          : item,
-      ),
-    };
-
-    return nextSnapshot;
-  });
+  updateSnapshot((currentSnapshot) => applyManualIdReviewToSnapshot(currentSnapshot, input));
 
 export const applyWalletBalanceOverridesToSnapshot = (
   currentSnapshot: WorkflowSnapshot,
@@ -1203,15 +1658,27 @@ export const startTradingBot = async (input: StartTradingBotInput) =>
     const nextBotBalance = roundCurrency(currentBotBalance + allocationAmountUsd);
     const strategyLabel = input.strategyLabel.trim() || getStrategyLabel(snapshot.selectedStrategyId);
     const startedAt = nowIso();
-
-    const depositPresent = (snapshot.simulatedDeposits?.length ?? 0) > 0 || sanitizeNumber(snapshot.mainWalletBalanceUsd) > 0;
+    const sessionId = createEntityId("bot");
+    const tradeLabel = getActiveTradeLabel(snapshot, input.riskLevel);
+    const nextTradeHistory = [
+      createBotTradeHistoryEntry(
+        sessionId,
+        {
+          ...input,
+          strategyLabel,
+          allocationAmountUsd,
+        },
+        tradeLabel,
+        startedAt,
+        nextBotBalance,
+      ),
+      ...snapshot.bot.tradeHistory,
+    ].slice(0, MAX_BOT_TRADE_HISTORY_ITEMS);
 
     return ensureDashboardState({
       ...snapshot,
       mainWalletBalanceUsd: roundCurrency(snapshot.mainWalletBalanceUsd - allocationAmountUsd),
       botWalletBalanceUsd: nextBotBalance,
-      // if there's a deposit present and bot is starting, unlock bonus for withdrawal
-      bonusLocked: depositPresent ? false : snapshot.bonusLocked,
       bot: {
         status: "running",
         active: true,
@@ -1228,12 +1695,14 @@ export const startTradingBot = async (input: StartTradingBotInput) =>
           strategyLabel,
           allocationAmountUsd,
         },
-        activeTradeLabel: getActiveTradeLabel(snapshot, input.riskLevel),
+        activeTradeLabel: tradeLabel,
         startedAt,
         stoppedAt: null,
         lastUpdatedAt: startedAt,
-        sessionId: createEntityId("bot"),
+        sessionId,
         tickCount: 0,
+        equityHistory: [createBotEquityPoint(sessionId, startedAt, nextBotBalance, nextBotBalance, "running", 0)],
+        tradeHistory: nextTradeHistory,
       },
     });
   });
@@ -1248,13 +1717,39 @@ export const stopTradingBot = async () =>
       return snapshot;
     }
 
+    const stoppedAt = nowIso();
+
     return ensureDashboardState({
       ...snapshot,
       bot: {
         ...snapshot.bot,
         active: false,
         status: "stopped",
-        stoppedAt: nowIso(),
+        stoppedAt,
+        lastUpdatedAt: stoppedAt,
+        equityHistory: snapshot.bot.sessionId
+          ? appendBotEquityPoint(
+              snapshot.bot.equityHistory,
+              createBotEquityPoint(
+                snapshot.bot.sessionId,
+                stoppedAt,
+                snapshot.bot.currentBalanceUsd,
+                snapshot.bot.startingBalanceUsd || snapshot.bot.currentBalanceUsd,
+                "stopped",
+                snapshot.bot.tickCount,
+              ),
+            )
+          : snapshot.bot.equityHistory,
+        tradeHistory: updateBotTradeHistoryEntry(snapshot.bot.tradeHistory, snapshot.bot.sessionId, (entry) => ({
+          ...entry,
+          currentBalanceUsd: snapshot.bot.currentBalanceUsd,
+          profitUsd: snapshot.bot.profitUsd,
+          profitLossPercent: snapshot.bot.profitLossPercent,
+          lastUpdatedAt: stoppedAt,
+          closedAt: stoppedAt,
+          status: "closed",
+          closeReason: "manual_stop",
+        })),
       },
     });
   });
@@ -1267,16 +1762,19 @@ export const withdrawBotBalanceToMainWallet = async () =>
       return snapshot;
     }
 
-    const withdrawnAmountUsd = snapshot.botWalletBalanceUsd;
-
-    return ensureDashboardState({
-      ...snapshot,
-      mainWalletBalanceUsd: roundCurrency(snapshot.mainWalletBalanceUsd + withdrawnAmountUsd),
-      botWalletBalanceUsd: 0,
-      bot: {
-        ...defaultBotState(),
-        tradingSettings: snapshot.bot.tradingSettings,
+    return settleBotBalanceToMainWallet(
+      {
+        ...snapshot,
+        bot: {
+          ...snapshot.bot,
+          status: "idle",
+        },
+      },
+      {
+        closeReason: "withdrawn_to_main_wallet",
+        settledAmountUsd: snapshot.botWalletBalanceUsd,
+        settledAt: nowIso(),
         status: "idle",
       },
-    });
+    );
   });

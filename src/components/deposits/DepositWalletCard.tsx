@@ -9,8 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 import {
+  calculateDepositBonusUsd,
+  DEPOSIT_BONUS_PERCENT,
   formatUsdCurrency,
   formatWorkflowTimestamp,
+  getDepositTotalWithBonusUsd,
   truncateAddress,
   type DepositRequest,
   type DepositWallet,
@@ -20,7 +23,6 @@ import { getTelegramWebAppUserId } from "@/hooks/use-telegram";
 import { cn } from "@/lib/utils";
 
 interface DepositWalletCardProps {
-  accountId: string;
   isSubmittingRequest: boolean;
   latestRequest?: DepositRequest;
   onSubmitDepositRequest: (input: SubmitDepositRequestInput) => Promise<void>;
@@ -37,6 +39,7 @@ const iconToneClasses: Record<DepositWallet["tokenCode"], string> = {
   ETH: "bg-sky-500/15 text-sky-300",
   USDT: "bg-emerald-500/15 text-emerald-300",
   BTC: "bg-amber-500/15 text-amber-300",
+  SOL: "bg-cyan-500/15 text-cyan-300",
 };
 
 const requestToneClasses: Record<DepositRequest["status"], string> = {
@@ -60,7 +63,6 @@ const copyText = async (value: string) => {
 };
 
 const DepositWalletCard = ({
-  accountId,
   isSubmittingRequest,
   latestRequest,
   onSubmitDepositRequest,
@@ -87,10 +89,20 @@ const DepositWalletCard = ({
 
   const amountUsd = Number.parseFloat(depositAmount);
   const hasValidAmount = Number.isFinite(amountUsd) && amountUsd > 0;
+  const bonusEstimateUsd = hasValidAmount ? calculateDepositBonusUsd(amountUsd) : 0;
+  const totalWithBonusUsd = hasValidAmount ? getDepositTotalWithBonusUsd(amountUsd) : 0;
+  const latestApprovedDepositAmountUsd =
+    latestRequest?.creditedAmountUsd ?? (latestRequest?.status === "approved" ? latestRequest.requestedAmountUsd : null);
+  const latestApprovedBonusUsd =
+    latestRequest?.depositBonusUsd ??
+    (latestApprovedDepositAmountUsd != null ? calculateDepositBonusUsd(latestApprovedDepositAmountUsd) : null);
+  const latestApprovedTotalUsd =
+    latestRequest?.totalCreditedAmountUsd ??
+    (latestApprovedDepositAmountUsd != null ? getDepositTotalWithBonusUsd(latestApprovedDepositAmountUsd) : null);
 
   const handleOpenAddress = () => {
     if (!hasValidAmount) {
-      toast.error("Enter a valid deposit amount first.");
+      toast.error("Enter the amount you want to send first.");
       return;
     }
 
@@ -103,9 +115,9 @@ const DepositWalletCard = ({
       await copyText(wallet.address);
       setCopied(true);
       setCopiedAt(new Date().toISOString());
-      toast.success(`${wallet.tokenCode} deposit address copied`);
+      toast.success(`${wallet.tokenCode} address copied`);
     } catch {
-      toast.error("Unable to copy the wallet address right now.");
+      toast.error("We could not copy the address right now.");
     }
   };
 
@@ -117,12 +129,12 @@ const DepositWalletCard = ({
 
   const handleSubmitDepositRequest = async () => {
     if (!hasValidAmount) {
-      toast.error("Enter a valid deposit amount first.");
+      toast.error("Enter the amount you want to send first.");
       return;
     }
 
     if (!copiedAt) {
-      toast.error("Copy the wallet address before marking the deposit as sent.");
+      toast.error("Copy the address before telling us you have sent it.");
       return;
     }
 
@@ -135,41 +147,13 @@ const DepositWalletCard = ({
         submittedByTelegramId: telegramId ?? null,
       });
 
-      let sharedQueueSynced = false;
-
-      // Try to mirror the request to the shared server queue for cross-browser admin visibility.
-      try {
-        const response = await fetch("/api/requests/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: `req-${Date.now()}`,
-            account_id: accountId,
-            token_code: wallet.tokenCode,
-            token_name: wallet.tokenName,
-            network_label: wallet.networkLabel,
-            address: wallet.address,
-            requested_amount_usd: amountUsd,
-            copied_at: copiedAt,
-            submitted_by_telegram_id: telegramId ?? null,
-          }),
-        });
-
-        sharedQueueSynced = response.ok;
-      } catch {}
-
       setDepositAmount("");
       setCopied(false);
       setCopiedAt(null);
       setPhase("amount");
-      if (sharedQueueSynced) {
-        toast.success(`${wallet.tokenCode} deposit request sent for shared review.`);
-      } else {
-        toast.success(`${wallet.tokenCode} deposit request sent for review.`);
-        toast.warning("Shared queue sync failed, so this request may only appear in the current browser.");
-      }
+      toast.success(`${wallet.tokenCode} funding request sent successfully.`);
     } catch {
-      toast.error("Unable to submit the deposit confirmation right now.");
+      toast.error("We could not send your funding request right now.");
     }
   };
 
@@ -207,14 +191,10 @@ const DepositWalletCard = ({
                   <CardTitle className="text-lg">{wallet.tokenName}</CardTitle>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Badge variant="outline">{wallet.networkLabel}</Badge>
-                    <Badge variant="secondary">Deposit flow</Badge>
+                    <Badge variant="secondary">Funding card</Badge>
                     {pendingRequestCount > 0 ? <Badge variant="outline">{pendingRequestCount} pending</Badge> : null}
                   </div>
                 </div>
-              </div>
-              <div className="text-right text-xs text-muted-foreground">
-                <div>Linked account</div>
-                <div className="mt-1 font-mono text-foreground">{accountId}</div>
               </div>
             </div>
           </CardHeader>
@@ -222,8 +202,8 @@ const DepositWalletCard = ({
           <CardContent className="space-y-6">
             <div className="rounded-xl border border-border bg-background/70 p-6">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Step 1</div>
-              <div className="mt-2 text-lg font-semibold text-foreground">How much would you like to deposit?</div>
-              <p className="mt-3 text-sm text-muted-foreground">Enter the amount you'd like to deposit. The card will flip to reveal the deposit address.</p>
+              <div className="mt-2 text-lg font-semibold text-foreground">How much are you planning to send?</div>
+              <p className="mt-3 text-sm text-muted-foreground">Enter your amount first, then open the funding address for this token.</p>
               <div className="mt-4 flex flex-col gap-3">
                 <Input
                   type="number"
@@ -238,29 +218,47 @@ const DepositWalletCard = ({
                   <ArrowRight size={16} />
                 </Button>
               </div>
+              {hasValidAmount ? (
+                <div className="mt-4 rounded-xl border border-gold/30 bg-gold/10 p-4 text-sm text-muted-foreground">
+                  <div className="font-medium text-foreground">{DEPOSIT_BONUS_PERCENT}% bonus on approval</div>
+                  <p className="mt-2">
+                    Deposit <span className="font-semibold text-foreground">{formatUsdCurrency(amountUsd)}</span>, receive
+                    bonus <span className="font-semibold text-foreground">{formatUsdCurrency(bonusEstimateUsd)}</span>, and get
+                    <span className="font-semibold text-foreground"> {formatUsdCurrency(totalWithBonusUsd)}</span> added to your main wallet.
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             {latestRequest ? (
               <div className="rounded-xl border border-border bg-background/70 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Latest request</div>
-                    <div className="mt-2 text-lg font-semibold text-foreground">
-                      {formatUsdCurrency(latestRequest.requestedAmountUsd)}
-                    </div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Latest request</div>
+                  <div className="mt-2 text-lg font-semibold text-foreground">
+                    {formatUsdCurrency(latestRequest.requestedAmountUsd)}
                   </div>
-                  <Badge className={requestToneClasses[latestRequest.status]}>
-                    {latestRequest.status.replaceAll("_", " ")}
-                  </Badge>
                 </div>
-                <div className="mt-3 text-sm text-muted-foreground">
-                  Submitted {formatWorkflowTimestamp(latestRequest.submittedAt)}
-                </div>
-                <div className="mt-2 text-sm text-muted-foreground">
-                  {latestRequest.approvalMessage ?? "No manual review message yet."}
-                </div>
+                <Badge className={requestToneClasses[latestRequest.status]}>
+                  {latestRequest.status.replaceAll("_", " ")}
+                </Badge>
               </div>
-            ) : null}
+              <div className="mt-3 text-sm text-muted-foreground">
+                Sent {formatWorkflowTimestamp(latestRequest.submittedAt)}
+              </div>
+              {latestRequest.status === "approved" && latestApprovedDepositAmountUsd != null && latestApprovedBonusUsd != null && latestApprovedTotalUsd != null ? (
+                <div className="mt-4 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-muted-foreground">
+                  <div className="font-medium text-foreground">Approved credit breakdown</div>
+                  <div className="mt-2">Deposit: <span className="font-semibold text-foreground">{formatUsdCurrency(latestApprovedDepositAmountUsd)}</span></div>
+                  <div className="mt-1">{DEPOSIT_BONUS_PERCENT}% bonus: <span className="font-semibold text-foreground">{formatUsdCurrency(latestApprovedBonusUsd)}</span></div>
+                  <div className="mt-1">Total added: <span className="font-semibold text-foreground">{formatUsdCurrency(latestApprovedTotalUsd)}</span></div>
+                </div>
+              ) : null}
+              <div className="mt-2 text-sm text-muted-foreground">
+                {latestRequest.approvalMessage ?? "We will update this card as soon as your request has been checked."}
+              </div>
+            </div>
+          ) : null}
 
             <div className="rounded-xl border border-border bg-background/70 p-6">
               <div className="flex items-start gap-3">
@@ -312,8 +310,8 @@ const DepositWalletCard = ({
           <CardContent className="space-y-6">
             <div className="rounded-xl border border-border bg-background/70 p-6">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Step 2</div>
-              <div className="mt-2 text-lg font-semibold text-foreground">Copy the  deposit address</div>
-              <p className="mt-3 text-sm text-muted-foreground">After you copy the address, confirm that you've sent the deposit. The request will move to review.</p>
+              <div className="mt-2 text-lg font-semibold text-foreground">Copy the funding address</div>
+              <p className="mt-3 text-sm text-muted-foreground">Copy the address below, send your transfer, then let us know when it has been sent.</p>
             </div>
 
             <div className="rounded-xl border border-border bg-background/70 p-6">
@@ -321,16 +319,18 @@ const DepositWalletCard = ({
               <div className="mt-2 font-mono text-sm text-foreground" title={wallet.address}>
                 {truncateAddress(wallet.address, 10, 10)}
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">The full address is copied to your clipboard when you press Copy.</p>
+              <p className="mt-2 text-xs text-muted-foreground">Tap Copy address to copy the full address to your clipboard.</p>
             </div>
 
             <div className="rounded-xl border border-border bg-background/70 p-6">
               <div className="flex items-start gap-3">
                 <ShieldCheck className="mt-0.5 text-gold" size={16} />
                 <div className="space-y-2 text-sm text-muted-foreground">
-                  <p>Planned deposit amount: <span className="font-semibold text-foreground">{hasValidAmount ? formatUsdCurrency(amountUsd) : "Not set"}</span></p>
+                  <p>Planned amount: <span className="font-semibold text-foreground">{hasValidAmount ? formatUsdCurrency(amountUsd) : "Not set"}</span></p>
+                  <p>{DEPOSIT_BONUS_PERCENT}% bonus on approval: <span className="font-semibold text-foreground">{hasValidAmount ? formatUsdCurrency(bonusEstimateUsd) : "Not set"}</span></p>
+                  <p>Total that will hit your wallet: <span className="font-semibold text-foreground">{hasValidAmount ? formatUsdCurrency(totalWithBonusUsd) : "Not set"}</span></p>
                   <p>Copied at: <span className="font-medium text-foreground">{formatWorkflowTimestamp(copiedAt)}</span></p>
-                  <p>When you click "I've Sent", your deposit awaits approval.</p>
+                  <p>After you tap &quot;I&apos;ve sent it&quot;, your request will appear in your funding updates.</p>
                 </div>
               </div>
             </div>
@@ -348,7 +348,7 @@ const DepositWalletCard = ({
                 disabled={!copiedAt || isSubmittingRequest}
               >
                 <Send size={16} />
-                {isSubmittingRequest ? "Sending..." : "I've Sent"}
+                {isSubmittingRequest ? "Sending..." : "I've sent it"}
               </Button>
               <div className="w-full sm:w-auto">
                 <DepositQrPlaceholderDialog

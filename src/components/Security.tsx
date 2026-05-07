@@ -9,9 +9,9 @@ interface SecurityProps {
 const Security = ({ onOpenSecuritySummary }: SecurityProps) => (
   <section id="security" className="scroll-mt-24 bg-card/50 py-24 px-4">
     <div className="container mx-auto text-center">
-      <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground">Enterprise-Grade Security</h2>
+      <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground">Built to feel safe and clear</h2>
       <p className="text-muted-foreground mt-3 max-w-lg mx-auto">
-
+        The customer side stays simple, while your account, funding access, and cash-out checks stay protected in the background.
       </p>
 
       <div className="mt-16 grid max-w-4xl gap-6 sm:grid-cols-2 lg:grid-cols-4 mx-auto">
@@ -36,7 +36,7 @@ const Security = ({ onOpenSecuritySummary }: SecurityProps) => (
         onClick={onOpenSecuritySummary}
         className="mt-10 inline-flex items-center justify-center gap-2 rounded-lg border border-border px-8 py-4 font-semibold text-foreground transition hover:bg-secondary"
       >
-        Review Security Summary
+        See how your account is protected
       </button>
     </div>
   </section>

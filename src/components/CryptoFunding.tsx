@@ -9,9 +9,9 @@ interface CryptoFundingProps {
 const CryptoFunding = ({ onOpenFundingChecklist }: CryptoFundingProps) => (
   <section id="funding" className="scroll-mt-24 py-24 px-4">
     <div className="container mx-auto text-center">
-      <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground">Global Crypto Funding</h2>
+      <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground">Funding made simple</h2>
       <p className="text-muted-foreground mt-3 max-w-lg mx-auto">
-        Funding routes now open a real checklist before any live transfer flow is implied
+        Choose the token you want to use, follow the right network, and keep every funding step easy to follow.
       </p>
 
       <div className="mt-16 grid max-w-4xl gap-6 sm:grid-cols-2 lg:grid-cols-4 mx-auto">
@@ -36,7 +36,7 @@ const CryptoFunding = ({ onOpenFundingChecklist }: CryptoFundingProps) => (
         onClick={onOpenFundingChecklist}
         className="mt-10 inline-flex items-center justify-center gap-2 rounded-lg bg-gold px-8 py-4 font-semibold text-primary-foreground transition hover:brightness-110"
       >
-        Review Funding Checklist
+        See funding tips
       </button>
     </div>
   </section>

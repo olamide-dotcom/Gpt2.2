@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useAccountWorkflow } from "@/hooks/use-account-workflow";
-import { formatUsdCurrency, formatWorkflowTimestamp } from "@/lib/account-workflow";
+import { DEPOSIT_BONUS_PERCENT, formatUsdCurrency, formatWorkflowTimestamp } from "@/lib/account-workflow";
 
 interface DepositSectionProps {
   onContinueOnboarding: () => void;
@@ -35,8 +35,8 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
     return (
       <Card className="border-border/80">
         <CardHeader>
-          <CardTitle className="text-xl">Loading your deposit workspace</CardTitle>
-          <CardDescription>Bringing your onboarding and wallet state into the deposit area.</CardDescription>
+          <CardTitle className="text-xl">Loading your funding page</CardTitle>
+          <CardDescription>Bringing your account, wallet balances, and funding details into view.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -47,12 +47,12 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
       <Card className="border-border/80">
         <CardHeader>
           <div className="flex flex-wrap items-center gap-3">
-            <Badge variant="outline">Deposit locked</Badge>
+            <Badge variant="outline">Funding locked</Badge>
             <Badge variant="secondary">{completionPercentage}% complete</Badge>
           </div>
-          <CardTitle className="text-xl">Finish onboarding to enable deposits</CardTitle>
+          <CardTitle className="text-xl">Finish setup to open funding</CardTitle>
           <CardDescription>
-            Your deposit addresses would be created once your onboarding is approved and your account is active.
+            Your funding addresses appear as soon as your account setup is approved.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -78,19 +78,23 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
             <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>You will receive per-token deposit addresses linked to your account.</span>
+                <span>You will receive funding addresses for each supported token.</span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>Clear wallet cards with network labels, copy buttons, and QR placeholders for easy deposits.</span>
+                <span>Every approved deposit adds an extra {DEPOSIT_BONUS_PERCENT}% bonus when it lands in your main wallet.</span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>Your dashboard unlocks after your first credited deposit lands in the main wallet.</span>
+                <span>Your $5 starter balance will be ready so you can start the AI bot before making your first deposit.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
+                <span>Your trade room will already be open, and a confirmed deposit unlocks cash-out eligibility after bot sessions return to your main wallet.</span>
               </li>
             </ul>
             <Button type="button" className="mt-6 w-full" onClick={onContinueOnboarding}>
-              Continue onboarding
+              Continue setup
             </Button>
           </div>
         </CardContent>
@@ -99,32 +103,45 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
   }
 
   const selectedStrategy =
-    strategies.find((strategy) => strategy.id === snapshot.selectedStrategyId)?.title ?? "Strategy track pending";
+    strategies.find((strategy) => strategy.id === snapshot.selectedStrategyId)?.title ?? "Your style will appear here";
   const pendingRequestCount = snapshot.depositRequests.filter((request) => request.status === "pending_review").length;
+  const approvedRequestCount = snapshot.depositRequests.filter((request) => request.status === "approved").length;
 
   return (
     <div className="space-y-6">
+      <Card className="border-gold/40 bg-gold/10">
+        <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-[0.24em] text-gold">Deposit bonus active</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">Every approved deposit gets an extra {DEPOSIT_BONUS_PERCENT}%</div>
+            <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+              If you deposit {formatUsdCurrency(1000)}, your balance receives {formatUsdCurrency(1100)} after approval.
+            </p>
+          </div>
+          <Badge className="bg-gold text-primary-foreground">+{DEPOSIT_BONUS_PERCENT}% on every approved deposit</Badge>
+        </CardContent>
+      </Card>
+
       <Card className="border-border/80">
         <CardHeader>
           <div className="flex flex-wrap items-center gap-3">
-            <Badge className="bg-gold text-primary-foreground">Deposit unlocked</Badge>
+            <Badge className="bg-gold text-primary-foreground">Funding ready</Badge>
             <Badge variant="secondary">Approved {formatWorkflowTimestamp(snapshot.approvedAt)}</Badge>
-            {pendingRequestCount > 0 ? <Badge variant="outline">{pendingRequestCount} awaiting apporval</Badge> : null}
-            {dashboardUnlocked ? <Badge variant="outline">Dashboard unlocked</Badge> : null}
+            <Badge variant="outline">+{DEPOSIT_BONUS_PERCENT}% bonus active</Badge>
+            {pendingRequestCount > 0 ? <Badge variant="outline">{pendingRequestCount} waiting for review</Badge> : null}
+            {dashboardUnlocked ? <Badge variant="outline">Trade room open</Badge> : null}
           </div>
-          <CardTitle className="text-xl">Your deposit workspace</CardTitle>
-          <CardDescription>
-            Deposit instructions are active. 
-          </CardDescription>
+          <CardTitle className="text-xl">Your funding page</CardTitle>
+          <CardDescription>Choose a token, copy the right address, and send your funding request. Every approved deposit receives an extra {DEPOSIT_BONUS_PERCENT}%.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-6 rounded-2xl border border-border bg-background/70 p-6">
             <div className="flex items-start gap-3">
               <WalletCards className="mt-0.5 text-gold" size={18} />
               <div>
-                <h3 className="font-semibold text-foreground">Wallet funding summary</h3>
+                <h3 className="font-semibold text-foreground">Funding summary</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Strategy track: <span className="font-medium text-foreground">{selectedStrategy}</span>
+                  Your selected trading style: <span className="font-medium text-foreground">{selectedStrategy}</span>
                 </p>
               </div>
             </div>
@@ -134,32 +151,36 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
                 <div className="mt-2 text-2xl font-semibold text-foreground">{formatUsdCurrency(snapshot.mainWalletBalanceUsd)}</div>
               </div>
               <div className="rounded-xl border border-border bg-card/70 p-6">
-                <div className="text-sm text-muted-foreground">Trading bot wallet</div>
+                <div className="text-sm text-muted-foreground">Session balance</div>
                 <div className="mt-2 text-2xl font-semibold text-foreground">{formatUsdCurrency(snapshot.botWalletBalanceUsd)}</div>
               </div>
             </div>
             <ul className="space-y-4 text-sm text-muted-foreground">
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>Use the exact network label shown on each token card. Cross-network deposits may require review.</span>
+                <span>Use the exact network shown on each token card so your funding reaches the right wallet.</span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>After you confirm a deposit, the request stays in a review queue until it's approved.</span>
+                <span>After you confirm a transfer, your funding request stays visible until it is checked.</span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
-                <span>After your first credited deposit, the dashboard unlocks and the AI bot can be funded.</span>
+                <span>Every approved deposit receives a {DEPOSIT_BONUS_PERCENT}% bonus before it lands in your main wallet.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold" />
+                <span>Your $5 starter balance is already there to get you started. A confirmed deposit unlocks cash-out once your bot sessions have returned to your main wallet.</span>
               </li>
             </ul>
             <div className="flex flex-wrap gap-3">
               <Button type="button" onClick={onOpenDashboard} disabled={!dashboardUnlocked}>
-                Open dashboard
+                Open trade room
                 <ArrowRight size={16} />
               </Button>
               {!dashboardUnlocked ? (
                 <div className="flex items-center text-sm text-muted-foreground">
-                  Credit at least one deposit to access the dashboard.
+                  Your trade room opens as soon as your starter balance is ready.
                 </div>
               ) : null}
             </div>
@@ -169,9 +190,9 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
             <div className="flex items-start gap-3">
               <Router className="mt-0.5 text-gold" size={18} />
               <div>
-                <h3 className="font-semibold text-foreground">Incoming transaction tracking</h3>
+                <h3 className="font-semibold text-foreground">Funding status</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  We track incoming transactions so your deposits can be matched and reconciled. Use Refresh to check the latest state.
+                  Follow your funding progress here. If you have already sent money, refresh this panel to check the latest update.
                 </p>
               </div>
             </div>
@@ -179,20 +200,18 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
             <div className="grid gap-4">
               <div className="rounded-xl border border-border bg-card/70 p-6">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="font-medium text-foreground">Webhook readiness</div>
-                  <Badge variant="outline">{snapshot.syncState.webhookReady ? "Ready" : "Pending"}</Badge>
+                  <div className="font-medium text-foreground">Waiting</div>
+                  <Badge variant="outline">{pendingRequestCount}</Badge>
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Last webhook heartbeat: {formatWorkflowTimestamp(snapshot.syncState.lastWebhookCheckAt)}
-                </p>
+                <p className="mt-2 text-sm text-muted-foreground">Funding requests still waiting for approval.</p>
               </div>
               <div className="rounded-xl border border-border bg-card/70 p-6">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="font-medium text-foreground">Polling readiness</div>
-                  <Badge variant="outline">{snapshot.syncState.pollingReady ? "Ready" : "Pending"}</Badge>
+                  <div className="font-medium text-foreground">Approved</div>
+                  <Badge variant="outline">{approvedRequestCount}</Badge>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Last polling heartbeat: {formatWorkflowTimestamp(snapshot.syncState.lastPollingCheckAt)}
+                  Last update: {formatWorkflowTimestamp(snapshot.updatedAt)}
                 </p>
               </div>
             </div>
@@ -204,7 +223,7 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
               disabled={isRefreshingTracking}
             >
               <RefreshCcw size={16} />
-              {isRefreshingTracking ? "Refreshing..." : "Refresh monitoring state"}
+              {isRefreshingTracking ? "Refreshing..." : "Refresh funding status"}
             </Button>
           </div>
         </CardContent>
@@ -215,7 +234,6 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
         {snapshot.depositAddresses.map((wallet) => (
           <DepositWalletCard
             key={wallet.tokenCode}
-            accountId={snapshot.userId}
             isSubmittingRequest={isSubmittingDepositRequest}
             latestRequest={snapshot.depositRequests.find((request) => request.tokenCode === wallet.tokenCode)}
             pendingRequestCount={
@@ -234,9 +252,9 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
 
       <Card className="border-border/80">
         <CardHeader>
-          <CardTitle className="text-xl">Deposit activity log</CardTitle>
+          <CardTitle className="text-xl">Funding activity</CardTitle>
           <CardDescription>
-            Confirmed transactions stay linked to your assigned token address, and approved deposits fund your wallet.
+            Every confirmed transfer stays linked to your funding page so you can follow what has already landed.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -255,7 +273,7 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
                     Amount: <span className="font-medium text-foreground">{formatUsdCurrency(Number(transaction.amount))}</span>
                   </div>
                   <div>
-                    Source: <span className="font-medium text-foreground capitalize">{transaction.source}</span>
+                    Status: <span className="font-medium text-foreground capitalize">{transaction.source}</span>
                   </div>
                   <div className="md:col-span-2">
                     Transaction hash: <span className="font-mono text-foreground">{transaction.txHash}</span>
@@ -273,20 +291,12 @@ const DepositSection = ({ onContinueOnboarding, onOpenDashboard }: DepositSectio
                 <div>
                   <p className="font-medium text-foreground">No incoming deposits tracked yet</p>
                   <p className="mt-2">
-                    Make a deposit  from one of the token addresses, then await approval or confirmation of transaction.
+                    Use one of the funding cards above, then check back here once your transfer has been checked or confirmed.
                   </p>
                 </div>
               </div>
             </div>
           )}
-
-          <div className="rounded-2xl border border-border bg-background/60 p-6">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 text-gold" size={18} />
-              <div className="text-sm text-muted-foreground">
-              </div>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

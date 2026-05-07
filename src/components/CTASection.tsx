@@ -14,10 +14,10 @@ const CTASection = ({ onOpenOnboarding }: CTASectionProps) => (
       transition={{ duration: 0.6 }}
       className="container mx-auto max-w-2xl text-center"
     >
-      <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground">Ready to move into onboarding?</h2>
+      <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground">Ready to open your trade room?</h2>
       <p className="text-muted-foreground mt-4">
-        Start the verification and setup flow now. When the final step is approved, the deposit page unlocks right
-        away.
+        Start your setup now. Once your account is approved, your funding page opens, your $5 starter balance is
+        ready to start the AI bot, and every approved deposit gets an extra 10%.
       </p>
       <button
         type="button"

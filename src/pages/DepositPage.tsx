@@ -4,6 +4,7 @@ import DepositSection from "@/components/deposits/DepositSection";
 import RealtimeDepositStatus from "@/components/deposits/RealtimeDepositStatus";
 import JourneyShell from "@/components/JourneyShell";
 import { useAccountWorkflow } from "@/hooks/use-account-workflow";
+import { DEPOSIT_BONUS_PERCENT } from "@/lib/account-workflow";
 
 interface LocationState {
   blockedFromDashboard?: boolean;
@@ -23,14 +24,13 @@ const DepositPage = () => {
   return (
     <JourneyShell
       stage="deposit"
-      title="Fund the wallet system with supported tokens"
-      description="This deposit workspace is the third stage of the journey. Once onboarding is approved, users can request a deposit, review it locally, then unlock the trading dashboard."
+      title="Funding"
+      description={`Use the right wallet address, send your funding request, and receive an extra ${DEPOSIT_BONUS_PERCENT}% on every approved deposit.`}
     >
       <div className="space-y-6">
         {locationState?.blockedFromDashboard ? (
           <div className="rounded-2xl border border-gold/30 bg-gold/10 px-5 py-4 text-sm text-foreground">
-            The dashboard unlocks after the first approved deposit. Initiate a deposit below, await approval 
-            , then continue into the AI trading area.
+            Your AI trade room is already open once your starter balance is added. Every approved deposit also gets an extra {DEPOSIT_BONUS_PERCENT}% when it hits your balance, and a confirmed deposit unlocks cash-out eligibility for the balances your AI bot returns to your main wallet.
           </div>
         ) : null}
 
@@ -39,7 +39,6 @@ const DepositPage = () => {
           onOpenDashboard={() => navigate("/dashboard")}
         />
 
-        {/* Real-time Deposit Status - Shows live updates from Firebase */}
         <RealtimeDepositStatus
           userId={firebaseUserId}
           existingRequests={snapshot?.depositRequests || []}

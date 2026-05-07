@@ -3,9 +3,11 @@ import { CheckCircle, Clock, XCircle, RefreshCcw, AlertCircle } from "lucide-rea
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
+  calculateDepositBonusUsd,
+  DEPOSIT_BONUS_PERCENT,
   formatUsdCurrency,
+  getDepositTotalWithBonusUsd,
   type DepositRequest,
 } from "@/lib/account-workflow";
 import {
@@ -26,6 +28,8 @@ const convertToLocaleRequest = (data: DepositRequestData): DepositRequest => ({
   address: data.address,
   requestedAmountUsd: data.requestedAmountUsd,
   creditedAmountUsd: data.creditedAmountUsd,
+  depositBonusUsd: data.depositBonusUsd ?? null,
+  totalCreditedAmountUsd: data.totalCreditedAmountUsd ?? null,
   status: data.status,
   copiedAt: null,
   submittedAt: data.submittedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
@@ -38,7 +42,7 @@ const statusConfig: Record<string, { icon: any; color: string; label: string }> 
   pending_review: {
     icon: Clock,
     color: "text-amber-500",
-    label: "Pending Review",
+    label: "Waiting",
   },
   approved: {
     icon: CheckCircle,
@@ -112,7 +116,7 @@ const RealtimeDepositStatus = ({ userId, existingRequests }: RealtimeDepositStat
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Badge className="bg-gold text-primary-foreground">Real-time Updates</Badge>
+            <Badge className="bg-gold text-primary-foreground">Live funding status</Badge>
             {isOnline ? (
               <Badge variant="outline" className="text-emerald-500 border-emerald-500/50">
                 <span className="mr-1 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -130,9 +134,9 @@ const RealtimeDepositStatus = ({ userId, existingRequests }: RealtimeDepositStat
             </div>
           )}
         </div>
-        <CardTitle className="text-xl">Your Deposit Requests</CardTitle>
+        <CardTitle className="text-xl">Your funding updates</CardTitle>
         <CardDescription>
-          Track your deposit requests in real-time. Admin actions will appear here instantly.
+          Follow every funding request here and see updates without leaving the page.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -141,7 +145,7 @@ const RealtimeDepositStatus = ({ userId, existingRequests }: RealtimeDepositStat
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
             <div className="flex items-center gap-2 text-amber-500">
               <Clock size={16} />
-              <span className="text-sm font-medium">Pending</span>
+              <span className="text-sm font-medium">Waiting</span>
             </div>
             <div className="mt-2 text-2xl font-semibold text-foreground">
               {pendingCount}
@@ -171,14 +175,14 @@ const RealtimeDepositStatus = ({ userId, existingRequests }: RealtimeDepositStat
         {isLoading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
             <RefreshCcw size={20} className="animate-spin mr-2" />
-            Loading your requests...
+            Loading your funding updates...
           </div>
         ) : requests.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-background/60 p-8 text-center">
             <Clock className="mx-auto mb-3 h-8 w-8 text-gold" />
-            <p className="font-medium text-foreground">No deposit requests yet</p>
+            <p className="font-medium text-foreground">No funding requests yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              When you submit a deposit request, it will appear here and update in real-time.
+              As soon as you send a funding request, it will appear here and update automatically.
             </p>
           </div>
         ) : (
@@ -186,6 +190,14 @@ const RealtimeDepositStatus = ({ userId, existingRequests }: RealtimeDepositStat
             {requests.map((request) => {
               const status = statusConfig[request.status] || statusConfig.pending_review;
               const StatusIcon = status.icon;
+              const approvedDepositAmountUsd =
+                request.creditedAmountUsd ?? (request.status === "approved" ? request.requestedAmountUsd : null);
+              const depositBonusUsd =
+                request.depositBonusUsd ??
+                (approvedDepositAmountUsd != null ? calculateDepositBonusUsd(approvedDepositAmountUsd) : null);
+              const totalCreditedAmountUsd =
+                request.totalCreditedAmountUsd ??
+                (approvedDepositAmountUsd != null ? getDepositTotalWithBonusUsd(approvedDepositAmountUsd) : null);
 
               return (
                 <div
@@ -239,14 +251,28 @@ const RealtimeDepositStatus = ({ userId, existingRequests }: RealtimeDepositStat
                             <span>{formatTimestamp(request.reviewedAt)}</span>
                           </div>
                         )}
-                        {request.creditedAmountUsd && request.status === "approved" && (
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">Credited:</span>
-                            <span className="font-semibold text-emerald-500">
-                              {formatUsdCurrency(request.creditedAmountUsd)}
-                            </span>
-                          </div>
-                        )}
+                        {approvedDepositAmountUsd != null && request.status === "approved" ? (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Deposit received:</span>
+                              <span className="font-semibold text-foreground">
+                                {formatUsdCurrency(approvedDepositAmountUsd)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{DEPOSIT_BONUS_PERCENT}% bonus:</span>
+                              <span className="font-semibold text-emerald-500">
+                                {formatUsdCurrency(depositBonusUsd ?? 0)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Total added to balance:</span>
+                              <span className="font-semibold text-emerald-500">
+                                {formatUsdCurrency(totalCreditedAmountUsd ?? approvedDepositAmountUsd)}
+                              </span>
+                            </div>
+                          </>
+                        ) : null}
                       </div>
 
                       {request.approvalMessage && request.reviewedAt && (
@@ -267,7 +293,7 @@ const RealtimeDepositStatus = ({ userId, existingRequests }: RealtimeDepositStat
                     {request.status === "pending_review" && (
                       <div className="flex items-center gap-2 text-sm text-amber-500">
                         <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                        <span>Waiting for admin review</span>
+                        <span>Waiting for review</span>
                       </div>
                     )}
                   </div>
@@ -282,11 +308,9 @@ const RealtimeDepositStatus = ({ userId, existingRequests }: RealtimeDepositStat
           <div className="flex items-start gap-3">
             <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-gold animate-pulse" />
             <div className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">Real-time Updates Active</span>
+              <span className="font-medium text-foreground">Live tracking is on</span>
               <p className="mt-1">
-                When an admin reviews your deposit request, this page will update automatically.
-                You'll see the status change from "Pending Review" to "Approved" or "Rejected"
-                without needing to refresh the page.
+                When your funding request is checked, this page updates automatically and shows the extra {DEPOSIT_BONUS_PERCENT}% on every approved deposit.
               </p>
             </div>
           </div>

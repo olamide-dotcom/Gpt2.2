@@ -11,7 +11,6 @@ const DashboardPage = () => {
     return <Navigate to="/onboarding" replace state={{ blockedFromDeposit: true }} />;
   }
 
-  // The dashboard only opens after a deposit has funded the main wallet.
   if (!isLoading && !dashboardUnlocked) {
     return <Navigate to="/deposit" replace state={{ blockedFromDashboard: true }} />;
   }
@@ -19,8 +18,8 @@ const DashboardPage = () => {
   return (
     <JourneyShell
       stage="dashboard"
-      title="Manage wallets and run the AI trading bot"
-      description="This is the final stage of the flow. Wallet balances, bot funding, simulated trading activity, and withdrawals all stay connected to the same persisted account state."
+      title="Your AI trade room"
+      description="Run the AI bot, watch the live-style chart, follow automatic exits, and see what is back in your wallet or ready for cash-out."
     >
       <TradingDashboard />
     </JourneyShell>

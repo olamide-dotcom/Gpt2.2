@@ -70,64 +70,64 @@ export interface FAQItem {
 
 export const navLinks: NavLinkItem[] = [
   { label: "How It Works", href: "#how-it-works" },
-  { label: "Why Choose Us", href: "#why-choose-us" },
-  { label: "Strategy Overview", href: "#strategies" },
+  { label: "Why People Start Here", href: "#why-choose-us" },
+  { label: "Trading Styles", href: "#strategies" },
 ];
 
 export const heroStats: HeroStat[] = [
-  { value: "24/7", label: "SIGNAL MONITORING" },
-  { value: "4-step", label: "ONBOARDING FLOW" },
-  { value: "Multi-token", label: "DEPOSIT READY" },
-  { value: "Fast", label: "EXECUTION ROUTING" },
+  { value: "$5", label: "STARTER BONUS" },
+  { value: "+10%", label: "DEPOSIT BONUS" },
+  { value: "4 steps", label: "ACCOUNT SETUP" },
+  { value: "4 tokens", label: "FUNDING OPTIONS" },
 ];
 
 export const steps: StepItem[] = [
   {
     icon: UserPlus,
     num: 1,
-    title: "Review Access Requirements",
-    desc: "Start with the crypto essentials: jurisdiction checks, supported wallet networks, and the funding rules that govern the trading flow.",
+    title: "Create Your Account",
+    desc: "Open your account and complete the short setup so your progress, funding access, and AI trade room stay tied to you.",
   },
   {
     icon: Wallet,
     num: 2,
-    title: "Complete Identity Checks",
-    desc: "Verify the account holder before funding begins so KYC records, wallet routing, and deposit approvals stay linked to the right user.",
+    title: "Verify Your Details",
+    desc: "Confirm your identity and account details so your funding page and starter balance can be prepared safely.",
   },
   {
     icon: PieChart,
     num: 3,
-    title: "Choose Strategy Track",
-    desc: "Pick the crypto trading pace that fits you, from steadier confirmation to faster-moving market opportunity capture.",
+    title: "Pick Your Trading Style",
+    desc: "Choose how quickly the AI bot should react as it tracks newly launched coins, early hype, and pullbacks.",
   },
   {
     icon: BarChart3,
     num: 4,
-    title: "Activate Account Workflows",
-    desc: "Turn on wallet alerts, reporting, and treasury routing. Once approved, the deposit workspace unlocks automatically.",
+    title: "Unlock Funding And Bonus",
+    desc: "Once your account is approved, your funding page opens, your $5 starter balance appears, and every approved deposit gets an extra 10%.",
   },
 ];
 
 export const whyChooseUsItems: WhyChooseUsItem[] = [
   {
     icon: Zap,
-    title: "Automation With Speed",
-    desc: "The workflow is built to move quickly from signal review to account setup, so users do not lose time to scattered steps.",
+    title: "Easy To Start",
+    desc: "The experience keeps setup, funding, and trading in one clear flow so you always know what to do next.",
   },
   {
     icon: Eye,
-    title: "Early Opportunity Focus",
-    desc: "Insider-bot signal support helps surface setups early, without forcing users to monitor the market all day.",
+    title: "Clear Bot View",
+    desc: "Watch your AI trade room, funding progress, and bot movement without digging through confusing screens.",
   },
   {
     icon: ShieldCheck,
     title: "Guided Verification",
-    desc: "Onboarding stays clear and structured, so approvals, identity checks, and strategy selection happen in the right order.",
+    desc: "Your account setup walks you through the right steps so approval, bonus access, and funding all happen in order.",
   },
   {
     icon: Wallet,
-    title: "Deposit Control",
-    desc: "Funding stays locked until onboarding is complete, then each supported token receives its own assigned deposit details.",
+    title: "Starter Bonus First",
+    desc: "After approval you receive a $5 starter balance to start the AI bot, then every approved deposit adds an extra 10% when you fund your account.",
   },
 ];
 
@@ -137,22 +137,22 @@ export const strategies: StrategyItem[] = [
     icon: Shield,
     title: "Steady Accumulate",
     profile: "Track: Lower volatility",
-    desc: "A calmer route that waits for stronger confirmation before acting on crypto and insider-bot opportunities.",
+    desc: "A calmer style that waits for stronger confirmation after a fresh listing goes live.",
     items: [
       "Lower trade frequency",
       "Extra signal confirmation",
       "Capital protection bias",
       "Weekly strategy review",
     ],
-    fit: "Best for users who want guided exposure and a steadier rhythm instead of reacting to every alert.",
-    reviewCadence: "Weekly review and slower rebalance windows.",
+    fit: "Best if you want a slower pace and more breathing room while learning the flow.",
+    reviewCadence: "Weekly updates and slower balance changes.",
   },
   {
     id: "balanced-portfolio",
     icon: BarChart3,
     title: "Hybrid Insider Flow",
     profile: "Track: Balanced automation",
-    desc: "Blends automated execution with insider-bot signal routing so users can move faster without feeling overwhelmed.",
+    desc: "A balanced mode that follows fresh listings early, rides the hype, and looks to exit before the bearish fade deepens.",
     items: [
       "Balanced signal frequency",
       "Bot-assisted trade routing",
@@ -160,55 +160,59 @@ export const strategies: StrategyItem[] = [
       "Daily monitoring",
     ],
     featured: true,
-    fit: "A strong default for users who want speed, structure, and manageable risk in one workflow.",
-    reviewCadence: "Daily monitoring with weekly adjustments.",
+    fit: "A strong default if you want a smooth mix of speed, structure, and control.",
+    reviewCadence: "Daily monitoring with steady weekly adjustments.",
   },
   {
     id: "aggressive-growth",
     icon: Rocket,
     title: "Momentum Capture",
     profile: "Track: Fast-moving opportunities",
-    desc: "A higher-tempo track for users who want earlier entries, quicker execution windows, and can handle sharper swings.",
+    desc: "A faster style built to catch release momentum quickly and react before hype reversals hit harder.",
     items: [
       "Faster signal cadence",
       "Early opportunity bias",
       "Quicker execution timing",
       "Intraday review",
     ],
-    fit: "Best for users who are comfortable with stronger volatility in exchange for faster signal response.",
-    reviewCadence: "Intraday monitoring and frequent optimization.",
+    fit: "Best if you are comfortable with stronger swings in return for faster reactions.",
+    reviewCadence: "Intraday monitoring and faster changes.",
   },
 ];
 
 export const fundingItems: FundingItem[] = [
-  { icon: Bitcoin, title: "Bitcoin (BTC)", desc: "Funding can be assigned after onboarding approval with a dedicated BTC deposit address." },
-  { icon: Wallet, title: "Ethereum (ETH)", desc: "ETH deposits use an approved network label and account-linked address after activation." },
-  { icon: Wallet, title: "USDT", desc: "Stablecoin funding is shown with the exact supported network so users send to the correct chain." },
-  { icon: ShieldCheck, title: "Workflow-Linked Routing", desc: "Deposit instructions stay tied to the approved account instead of showing before verification." },
+  { icon: Bitcoin, title: "Bitcoin (BTC)", desc: "Use your BTC funding card after approval and copy the address shown for you." },
+  { icon: Wallet, title: "Ethereum (ETH)", desc: "Use the ETH card and follow the network shown on the screen before you send." },
+  { icon: Wallet, title: "USDT", desc: "Use the network shown on the USDT card so your funding reaches the right address." },
+  { icon: ShieldCheck, title: "Linked To Your Account", desc: "Your funding instructions stay tied to your approved account so everything stays in one place." },
 ];
 
 export const securityItems: SecurityItem[] = [
-  { icon: ShieldCheck, title: "Step-Gated Access", desc: "Users cannot reach deposits until onboarding steps and approval are complete." },
-  { icon: HardDrive, title: "No Frontend Keys", desc: "The deposit UI never exposes private keys and is ready to swap to server-issued addresses later." },
-  { icon: ShieldAlert, title: "Linked Reviews", desc: "Identity checks, strategy choices, and funding state stay attached to the same account snapshot." },
-  { icon: Eye, title: "Monitoring Ready", desc: "Incoming transaction tracking is already structured for webhook or polling-based reconciliation." },
+  { icon: ShieldCheck, title: "Protected Access", desc: "Funding stays locked until your setup is complete and your account is approved." },
+  { icon: HardDrive, title: "Safer Funding Flow", desc: "You only see the address and instructions you need, without extra clutter." },
+  { icon: ShieldAlert, title: "Account Checks Stay Linked", desc: "Your identity checks, funding progress, and cash-out checks stay tied to the same account." },
+  { icon: Eye, title: "Clear Updates", desc: "You can follow your funding and account updates clearly without guessing what happens next." },
 ];
 
 export const faqs: FAQItem[] = [
   {
     q: "What does the platform do?",
-    a: "It combines crypto-focused workflow setup, strategy-track selection, and insider-bot style signal support in one guided journey.",
+    a: "It gives you one guided place to set up your account, fund it, and run the AI bot inside a live trade room.",
   },
   {
-    q: "When does the deposit page unlock?",
-    a: "Deposit access unlocks after the onboarding workflow is completed and the final activation step approves the account.",
+    q: "When do I receive the $5 starter balance?",
+    a: "The $5 starter balance appears after your account setup is approved, so you can start with the AI bot before making your first deposit.",
   },
   {
-    q: "Can I continue later?",
-    a: "Yes. Onboarding progress is stored locally in this implementation so the same user can return and continue from the saved step.",
+    q: "When does the funding page unlock?",
+    a: "Funding opens as soon as your account setup is approved, each token card shows the exact address you should use, and every approved deposit receives an extra 10% bonus.",
   },
   {
-    q: "Are wallet addresses live production wallets?",
-    a: "Not yet. This implementation is backend-ready and keeps private keys out of the frontend, but production should replace the local adapter with server-issued addresses.",
+    q: "Do approved deposits get a bonus?",
+    a: "Yes. Every approved deposit adds an extra 10% to your main wallet after review.",
+  },
+  {
+    q: "Can I withdraw the starter balance before I deposit?",
+    a: "No. The starter balance is there to help you get started with the AI bot first. Sessions can return to your main wallet, but cash-out stays locked until your first confirmed deposit.",
   },
 ];

@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import JourneyShell from "@/components/JourneyShell";
 import OnboardingWorkflow from "@/components/onboarding/OnboardingWorkflow";
+import { DEPOSIT_BONUS_PERCENT } from "@/lib/account-workflow";
 
 import type { StrategyId } from "@/content/site";
 
@@ -18,14 +19,14 @@ const OnboardingPage = () => {
   return (
     <JourneyShell
       stage="onboarding"
-      title="Complete onboarding to unlock deposits"
-      description="Follow the same guided path introduced on the landing page: review access, complete checks, choose a strategy, and activate the workflow. Progress is saved so users can return later."
+      title="Set up your account"
+      description={`Complete the short setup once, keep your progress saved automatically, and unlock funding, your $5 starter balance, and a ${DEPOSIT_BONUS_PERCENT}% bonus on every approved deposit.`}
     >
       <div className="space-y-6">
         {locationState?.blockedFromDeposit ? (
           <div className="rounded-2xl border border-gold/30 bg-gold/10 px-5 py-4 text-sm text-foreground">
-            Deposit stays locked until onboarding is approved. Finish the steps below and the deposit page will open as
-            soon as activation completes.
+            Funding opens after your setup is approved. Finish the steps below and your funding page, starter
+            balance, and {DEPOSIT_BONUS_PERCENT}% approved-deposit bonus will be ready.
           </div>
         ) : null}
 

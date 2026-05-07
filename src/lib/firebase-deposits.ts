@@ -18,7 +18,13 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { DepositTokenCode, DepositRequestStatus } from './account-workflow';
+import {
+  calculateDepositBonusUsd,
+  DEPOSIT_BONUS_PERCENT,
+  getDepositTotalWithBonusUsd,
+  type DepositTokenCode,
+  type DepositRequestStatus,
+} from './account-workflow';
 
 // ============================================
 // Firestore Collection References
@@ -50,6 +56,8 @@ export interface DepositRequestData {
   address: string;
   requestedAmountUsd: number;
   creditedAmountUsd: number | null;
+  depositBonusUsd?: number | null;
+  totalCreditedAmountUsd?: number | null;
   status: DepositRequestStatus;
   submittedAt: any; // serverTimestamp or Date
   reviewedAt: any; // serverTimestamp or Date | null
@@ -253,13 +261,27 @@ export const reviewDepositRequest = async (input: ReviewDepositInput): Promise<v
       updatedAt: serverTimestamp(),
       approvalMessage: input.approvalMessage || (
         input.status === 'approved'
-          ? 'Deposit confirmed manually and credited to the wallet.'
+          ? `Deposit confirmed manually. ${DEPOSIT_BONUS_PERCENT}% bonus added to your balance.`
           : 'Deposit request rejected during manual review.'
       ),
     };
-    
-    if (input.creditedAmountUsd !== undefined && input.creditedAmountUsd !== null) {
-      updateData.creditedAmountUsd = input.creditedAmountUsd;
+
+    if (input.status === 'approved') {
+      const requestData = requestSnap.data() as Partial<DepositRequestData>;
+      const creditedAmountUsd =
+        typeof input.creditedAmountUsd === 'number' && Number.isFinite(input.creditedAmountUsd)
+          ? input.creditedAmountUsd
+          : typeof requestData.requestedAmountUsd === 'number'
+            ? requestData.requestedAmountUsd
+            : 0;
+
+      updateData.creditedAmountUsd = creditedAmountUsd;
+      updateData.depositBonusUsd = calculateDepositBonusUsd(creditedAmountUsd);
+      updateData.totalCreditedAmountUsd = getDepositTotalWithBonusUsd(creditedAmountUsd);
+    } else {
+      updateData.creditedAmountUsd = null;
+      updateData.depositBonusUsd = null;
+      updateData.totalCreditedAmountUsd = null;
     }
     
     await updateDoc(requestRef, updateData);

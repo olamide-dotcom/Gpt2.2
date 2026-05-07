@@ -6,9 +6,9 @@ const WhyChooseUs = () => (
   <section id="why-choose-us" className="scroll-mt-24 py-24 px-4">
     <div className="container mx-auto">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground">Why Choose Us</h2>
+        <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground">Why People Start Here</h2>
         <p className="mt-3 text-muted-foreground">
-          Built for people who want crypto automation and insider-bot signal support without drowning in technical noise.
+          The whole app is built to feel clear, guided, and easy to move through from setup to funding to bot activity.
         </p>
       </div>
 

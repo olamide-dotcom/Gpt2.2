@@ -26,7 +26,7 @@ const HeroSection = ({ onOpenOnboarding }: HeroSectionProps) => (
       transition={{ duration: 0.7 }}
       className="font-display max-w-4xl text-4xl font-bold leading-tight text-foreground sm:text-5xl md:text-6xl lg:text-7xl"
     >
-      AICrypto trading access with insider-bot signals.
+      Start simple, unlock funding fast, and receive 10% extra on every approved deposit.
     </motion.h1>
 
     <motion.p
@@ -35,8 +35,8 @@ const HeroSection = ({ onOpenOnboarding }: HeroSectionProps) => (
       transition={{ duration: 0.7, delay: 0.2 }}
       className="mt-6 max-w-2xl text-base text-muted-foreground sm:text-lg"
     >
-      See how the platform works, complete the onboarding flow at your own pace, and unlock a clean deposit workspace
-      once verification and setup are done. The experience stays simple, fast, and focused on early opportunities.
+      Create your account, complete verification, and move into a simpler trading flow. Once your account is approved,
+      your funding page opens, your $5 starter balance is ready for your first AI bot session, and every approved deposit gets an extra 10%.
     </motion.p>
 
     <motion.div
@@ -56,7 +56,7 @@ const HeroSection = ({ onOpenOnboarding }: HeroSectionProps) => (
         href="#strategies"
         className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-8 py-4 text-base font-semibold text-foreground transition hover:bg-secondary"
       >
-        <Bot size={18} /> View Strategy Overview
+        <Bot size={18} /> View Trading Styles
       </a>
     </motion.div>
 

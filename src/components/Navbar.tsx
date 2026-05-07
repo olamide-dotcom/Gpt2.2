@@ -2,19 +2,17 @@ import { useState } from "react";
 import { ArrowRight, Menu, Wallet, X } from "lucide-react";
 
 import { navLinks } from "@/content/site";
-import { useAccountWorkflow } from "@/hooks/use-account-workflow";
+import { useAppAuth } from "@/hooks/use-app-auth";
 
 interface NavbarProps {
+  onOpenAuth: () => void;
   onOpenDeposit: () => void;
   onOpenOnboarding: () => void;
 }
 
-const Navbar = ({ onOpenDeposit, onOpenOnboarding }: NavbarProps) => {
+const Navbar = ({ onOpenAuth, onOpenDeposit, onOpenOnboarding }: NavbarProps) => {
   const [open, setOpen] = useState(false);
-  const { snapshot } = useAccountWorkflow();
-  const withdrawableBalance = snapshot
-    ? snapshot.mainWalletBalanceUsd - (snapshot.bonusLocked ? snapshot.bonusUsd ?? 0 : 0)
-    : 0;
+  const { isAuthenticated, signOut, username } = useAppAuth();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
@@ -35,24 +33,37 @@ const Navbar = ({ onOpenDeposit, onOpenOnboarding }: NavbarProps) => {
             onClick={onOpenDeposit}
             className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            <Wallet size={14} /> Deposit
+            <Wallet size={14} /> Funding
           </button>
-          {withdrawableBalance > 0 ? (
+          {isAuthenticated ? (
+            <div className="rounded-full border border-gold/30 bg-secondary px-3 py-2 text-sm text-foreground">
+              @{username ?? "account"}
+            </div>
+          ) : (
             <button
               type="button"
-              onClick={() => (window.location.href = "/withdraw")}
-              className="inline-flex items-center gap-1 rounded-lg bg-gold px-3 py-2 text-sm font-medium text-foreground"
+              onClick={onOpenAuth}
+              className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground"
             >
-              Withdraw
+              Sign in
             </button>
-          ) : null}
+          )}
           <button
             type="button"
-            onClick={onOpenOnboarding}
+            onClick={isAuthenticated ? onOpenOnboarding : onOpenAuth}
             className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           >
-            <ArrowRight size={14} /> Get Started
+            <ArrowRight size={14} /> {isAuthenticated ? "Open trade room" : "Get started"}
           </button>
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground"
+            >
+              Sign out
+            </button>
+          ) : null}
         </div>
 
         <button
@@ -87,30 +98,49 @@ const Navbar = ({ onOpenDeposit, onOpenOnboarding }: NavbarProps) => {
             }}
             className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            <Wallet size={14} /> Deposit
+            <Wallet size={14} /> Funding
           </button>
-          {snapshot && snapshot.mainWalletBalanceUsd > 0 ? (
+          {!isAuthenticated ? (
             <button
               type="button"
               onClick={() => {
                 setOpen(false);
-                window.location.href = "/withdraw";
+                onOpenAuth();
               }}
-              className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2 text-sm font-medium text-foreground"
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground"
             >
-              Withdraw
+              Sign in
             </button>
-          ) : null}
+          ) : (
+            <div className="rounded-lg border border-gold/30 bg-secondary px-4 py-2 text-sm text-foreground">@{username ?? "account"}</div>
+          )}
           <button
             type="button"
             onClick={() => {
               setOpen(false);
-              onOpenOnboarding();
+              if (isAuthenticated) {
+                onOpenOnboarding();
+                return;
+              }
+
+              onOpenAuth();
             }}
             className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-foreground"
           >
-            <ArrowRight size={14} /> Get Started
+            <ArrowRight size={14} /> {isAuthenticated ? "Open trade room" : "Get started"}
           </button>
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                void signOut();
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground"
+            >
+              Sign out
+            </button>
+          ) : null}
         </div>
       )}
     </nav>

@@ -1,11 +1,14 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   activateAccountWorkflows,
   applyManualDepositReview,
+  calculateDepositBonusUsd,
   createWorkflowSnapshot,
+  DEPOSIT_BONUS_PERCENT,
   getCompletionPercentage,
+  getDepositTotalWithBonusUsd,
   getIncompleteSteps,
   getTotalWalletBalance,
   getWorkflowSnapshot,
@@ -15,6 +18,7 @@ import {
   refreshDepositTracking,
   rebaseWorkflowSnapshot,
   replaceWorkflowSnapshot,
+  setDepositAddresses as setLocalDepositAddresses,
   submitIdVerification,
   saveIdentityChecks,
   saveReviewAccessRequirements,
@@ -37,6 +41,8 @@ import {
   initializeUserSession,
   listenToUser,
   applyDepositReviewToUserWorkflow,
+  applyIdReviewToUserWorkflow,
+  setUserWorkflowDepositAddresses,
   setUserWorkflowWalletBalances,
   syncUserWorkflow,
   type UserData,
@@ -92,13 +98,15 @@ export const useAccountWorkflow = () => {
   // Initialize Firebase on mount
   useEffect(() => {
     const initFirebase = async () => {
+      let seededSnapshot: WorkflowSnapshot | null = null;
+
       try {
-        const cachedSnapshot = await getWorkflowSnapshot();
         const { userId, userData, unsubscribe: unsubscribeSession } = await initializeUserSession();
+        const cachedSnapshot = await getWorkflowSnapshot();
         setFirebaseUserId(userId);
         setFirebaseUserData(userData);
 
-        const seededSnapshot = userData
+        seededSnapshot = userData
           ? convertUserDataToSnapshot(userData, rebaseWorkflowSnapshot(cachedSnapshot, userId))
           : rebaseWorkflowSnapshot(cachedSnapshot, userId);
 
@@ -106,7 +114,11 @@ export const useAccountWorkflow = () => {
         queryClient.setQueryData(workflowQueryKey, seededSnapshot);
 
         if (!userData?.workflowSnapshot) {
-          await syncUserWorkflow(userId, seededSnapshot);
+          try {
+            await syncUserWorkflow(userId, seededSnapshot);
+          } catch (syncError) {
+            console.error("Failed to sync initial workflow to Firebase:", syncError);
+          }
         }
 
         // Set up real-time listener for Firebase data
@@ -130,12 +142,15 @@ export const useAccountWorkflow = () => {
         };
       } catch (error) {
         console.error('Failed to initialize Firebase:', error);
-        // Fall back to local storage
-        try {
-          const initialSnapshot = await getWorkflowSnapshot();
-          queryClient.setQueryData(workflowQueryKey, initialSnapshot);
-        } catch (e) {
-          console.error('Failed to load fallback snapshot:', e);
+        if (seededSnapshot) {
+          queryClient.setQueryData(workflowQueryKey, seededSnapshot);
+        } else {
+          try {
+            const initialSnapshot = await getWorkflowSnapshot();
+            queryClient.setQueryData(workflowQueryKey, initialSnapshot);
+          } catch (e) {
+            console.error('Failed to load fallback snapshot:', e);
+          }
         }
         setIsLoadingFirebase(false);
         setFirebaseInitialized(true);
@@ -165,15 +180,44 @@ export const useAccountWorkflow = () => {
     }
   }, [firebaseUserId, firebaseInitialized, queryClient]);
 
+  useEffect(() => {
+    if (!firebaseUserId) {
+      return;
+    }
+
+    const cachedSnapshot = queryClient.getQueryData<WorkflowSnapshot>(workflowQueryKey);
+    if (!cachedSnapshot || cachedSnapshot.userId === firebaseUserId) {
+      return;
+    }
+
+    const rebasedSnapshot = replaceWorkflowSnapshot(rebaseWorkflowSnapshot(cachedSnapshot, firebaseUserId));
+    queryClient.setQueryData(workflowQueryKey, rebasedSnapshot);
+
+    if (firebaseInitialized) {
+      syncUserWorkflow(firebaseUserId, rebasedSnapshot).catch(console.error);
+    }
+  }, [firebaseInitialized, firebaseUserId, queryClient]);
+
+  const cachedSnapshot = queryClient.getQueryData<WorkflowSnapshot>(workflowQueryKey);
+
+  const resolvedSnapshot = useMemo(() => {
+    if (!cachedSnapshot) {
+      return cachedSnapshot;
+    }
+
+    return firebaseUserId ? rebaseWorkflowSnapshot(cachedSnapshot, firebaseUserId) : cachedSnapshot;
+  }, [cachedSnapshot, firebaseUserId]);
+
   // Use getWorkflowSnapshot for initial data (falls back to localStorage if Firebase not ready)
   const query = {
-    data: queryClient.getQueryData<WorkflowSnapshot>(workflowQueryKey),
+    data: resolvedSnapshot,
     isLoading: isLoadingFirebase,
     isError: false,
     error: null,
     refetch: () => getWorkflowSnapshot().then(snapshot => {
-      queryClient.setQueryData(workflowQueryKey, snapshot);
-      return snapshot;
+      const nextSnapshot = firebaseUserId ? rebaseWorkflowSnapshot(snapshot, firebaseUserId) : snapshot;
+      queryClient.setQueryData(workflowQueryKey, nextSnapshot);
+      return nextSnapshot;
     }),
   };
 
@@ -243,10 +287,12 @@ export const useAccountWorkflow = () => {
                 address: wallet.address,
                 requestedAmountUsd: input.amountUsd,
                 creditedAmountUsd: null,
+                depositBonusUsd: null,
+                totalCreditedAmountUsd: null,
                 status: 'pending_review',
                 submittedAt: new Date(),
                 reviewedAt: null,
-                approvalMessage: 'Awaiting manual review.',
+                approvalMessage: `Awaiting manual review. Approved deposits receive a ${DEPOSIT_BONUS_PERCENT}% bonus.`,
                 submittedByTelegramId: input.submittedByTelegramId,
               }).catch(err => {
                 console.error('Failed to sync deposit request to Firebase:', err);
@@ -301,8 +347,16 @@ export const useAccountWorkflow = () => {
         for (const req of recentlyReviewed) {
           if (!req.submittedByTelegramId) continue;
           const chatId = req.submittedByTelegramId;
+          const depositBonusUsd =
+            req.depositBonusUsd ?? (req.creditedAmountUsd != null ? calculateDepositBonusUsd(req.creditedAmountUsd) : null);
+          const totalCreditedAmountUsd =
+            req.totalCreditedAmountUsd ?? (req.creditedAmountUsd != null ? getDepositTotalWithBonusUsd(req.creditedAmountUsd) : null);
+          const approvedBreakdown =
+            req.status === "approved" && req.creditedAmountUsd != null && depositBonusUsd != null && totalCreditedAmountUsd != null
+              ? `\nDeposit: ${req.creditedAmountUsd.toFixed(2)} USD\nBonus: ${depositBonusUsd.toFixed(2)} USD\nTotal added: ${totalCreditedAmountUsd.toFixed(2)} USD`
+              : "";
           const text = `Your deposit request *${req.id}* for *${req.requestedAmountUsd.toFixed(2)} USD* was *${req.status}*.
-${req.approvalMessage ? '\nMessage: ' + req.approvalMessage : ''}`;
+${approvedBreakdown}${req.approvalMessage ? '\nMessage: ' + req.approvalMessage : ''}`;
 
           void fetch('/api/notify-telegram', {
             method: 'POST',
@@ -317,8 +371,18 @@ ${req.approvalMessage ? '\nMessage: ' + req.approvalMessage : ''}`;
   });
 
   const applyManualIdReviewMutation = useMutation({
-    mutationFn: applyManualIdReview,
-    onSuccess: syncSnapshot,
+    mutationFn: async (input: Parameters<typeof applyManualIdReview>[0] & { userId?: string }) => {
+      if (input.userId && input.userId !== firebaseUserId) {
+        return applyIdReviewToUserWorkflow(input.userId, input);
+      }
+
+      return applyManualIdReview(input);
+    },
+    onSuccess: (snapshot, variables) => {
+      if (!variables.userId || variables.userId === firebaseUserId) {
+        syncSnapshot(snapshot);
+      }
+    },
   });
 
   const walletBalanceMutation = useMutation({
@@ -328,6 +392,21 @@ ${req.approvalMessage ? '\nMessage: ' + req.approvalMessage : ''}`;
       }
 
       return setWalletBalances(input);
+    },
+    onSuccess: (snapshot, variables) => {
+      if (!variables.userId || variables.userId === firebaseUserId) {
+        syncSnapshot(snapshot);
+      }
+    },
+  });
+
+  const depositAddressMutation = useMutation({
+    mutationFn: async (input: { userId?: string; addresses: Parameters<typeof setLocalDepositAddresses>[0] }) => {
+      if (input.userId && input.userId !== firebaseUserId) {
+        return setUserWorkflowDepositAddresses(input.userId, input.addresses);
+      }
+
+      return setLocalDepositAddresses(input.addresses);
     },
     onSuccess: (snapshot, variables) => {
       if (!variables.userId || variables.userId === firebaseUserId) {
@@ -381,6 +460,7 @@ ${req.approvalMessage ? '\nMessage: ' + req.approvalMessage : ''}`;
     submitIdVerification: submitIdVerificationMutation.mutateAsync,
     applyManualIdReview: applyManualIdReviewMutation.mutateAsync,
     setWalletBalances: walletBalanceMutation.mutateAsync,
+    setDepositAddresses: depositAddressMutation.mutateAsync,
     simulateDeposit: simulateDepositMutation.mutateAsync,
     startTradingBot: startTradingBotMutation.mutateAsync,
     syncTradingBot: syncTradingBotMutation.mutateAsync,
@@ -397,6 +477,7 @@ ${req.approvalMessage ? '\nMessage: ' + req.approvalMessage : ''}`;
     isApplyingDepositReview: applyManualDepositReviewMutation.isPending,
     isApplyingIdReview: applyManualIdReviewMutation.isPending,
     isSavingWalletBalances: walletBalanceMutation.isPending,
+    isSavingDepositAddresses: depositAddressMutation.isPending,
     isSimulatingDeposit: simulateDepositMutation.isPending,
     isStartingTradingBot: startTradingBotMutation.isPending,
     isSyncingTradingBot: syncTradingBotMutation.isPending,

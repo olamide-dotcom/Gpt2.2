@@ -18,6 +18,8 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   formatUsdCurrency,
+  getBotExecutionCadenceMs,
+  getBotExecutionSpeedLabel,
   MAX_BOT_GAIN_PERCENT,
   MAX_BOT_LOSS_PERCENT,
   type BotLeverage,
@@ -89,6 +91,8 @@ const BotSetupDialog = ({
     ],
     [leverage, riskLevel, stopLossPercent, takeProfitPercent],
   );
+  const cadenceMs = getBotExecutionCadenceMs({ leverage, riskLevel });
+  const executionSpeed = getBotExecutionSpeedLabel({ leverage, riskLevel });
 
   const handleStart = async () => {
     if (!settingsValid || !allocationValid) {
@@ -113,10 +117,10 @@ const BotSetupDialog = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bot size={18} className="text-gold" />
-            Start AI Trading Bot
+            Start your AI bot
           </DialogTitle>
           <DialogDescription>
-            Configure the bot first, then decide how much of the main wallet to allocate into the trading engine.
+            Choose how you want the AI bot to react, set your stop loss and take profit, then pick the amount for this session.
           </DialogDescription>
         </DialogHeader>
 
@@ -171,7 +175,9 @@ const BotSetupDialog = ({
                     onChange={(event) => setStopLossPercent(event.target.value)}
                     placeholder="8"
                   />
-                  <p className="text-xs text-muted-foreground">Loss is capped at {MAX_BOT_LOSS_PERCENT}% of the allocated trade amount.</p>
+                  <p className="text-xs text-muted-foreground">
+                    If the session drops to this percentage, the bot closes and returns the remaining balance to your main wallet.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="takeProfitPercent">Take profit (%)</Label>
@@ -185,17 +191,19 @@ const BotSetupDialog = ({
                     onChange={(event) => setTakeProfitPercent(event.target.value)}
                     placeholder="12"
                   />
-                  <p className="text-xs text-muted-foreground">Profit is capped at {MAX_BOT_GAIN_PERCENT}% of the allocated trade amount.</p>
+                  <p className="text-xs text-muted-foreground">
+                    When gains reach this percentage, the bot closes and returns the full session back to your main wallet.
+                  </p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="strategyLabel">Strategy label</Label>
+                  <Label htmlFor="strategyLabel">Session name</Label>
                 <Input
                   id="strategyLabel"
                   value={strategyLabel}
                   onChange={(event) => setStrategyLabel(event.target.value)}
-                  placeholder="Hybrid Insider Flow"
+                    placeholder="My launch trade setup"
                 />
               </div>
 
@@ -203,17 +211,34 @@ const BotSetupDialog = ({
                 <div className="flex items-start gap-3">
                   <ShieldCheck className="mt-0.5 text-gold" size={18} />
                   <div className="space-y-3">
-                    <div className="font-medium text-foreground">Bot behavior preview</div>
+                    <div className="font-medium text-foreground">What this setup means</div>
                     <div className="flex flex-wrap gap-2">
                       {summaryBadges.map((item) => (
                         <Badge key={item} variant="outline">
                           {item}
                         </Badge>
                       ))}
+                      <Badge variant="outline">Launch tracking</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      The simulation moves more gradually now and stays bounded between -{MAX_BOT_LOSS_PERCENT}% and +
-                      {MAX_BOT_GAIN_PERCENT}% of the allocated trade amount.
+                      This engine tracks newly launched coins around release, rides the early hype, shows pullbacks on the chart, and closes before the bearish fade gets worse.
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border border-border/80 bg-card/70 p-3">
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Bot speed</div>
+                        <div className="mt-1 font-semibold text-foreground">{executionSpeed}</div>
+                        <div className="text-xs text-muted-foreground">
+                          About {(cadenceMs / 1000).toFixed(cadenceMs % 1000 === 0 ? 0 : 1)}s per engine update. More leverage and risk means faster reactions.
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-border/80 bg-card/70 p-3">
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Auto exit</div>
+                        <div className="mt-1 font-semibold text-foreground">TP {takeProfitPercent}% / SL {stopLossPercent}%</div>
+                        <div className="text-xs text-muted-foreground">The session closes automatically and sends the result back to your main wallet once either level is reached.</div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Stop loss can go up to {MAX_BOT_LOSS_PERCENT}% and take profit can go up to {MAX_BOT_GAIN_PERCENT}% per session.
                     </p>
                   </div>
                 </div>
@@ -224,14 +249,13 @@ const BotSetupDialog = ({
               <div className="rounded-2xl border border-border bg-background/70 p-5">
                 <div className="flex items-start gap-3">
                   <Wallet className="mt-0.5 text-gold" size={18} />
-                  <div>
-                    <div className="font-medium text-foreground">Fund allocation step</div>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Move funds from the main wallet into the trading bot wallet. This is what powers the simulated
-                      active trade.
-                    </p>
+                    <div>
+                      <div className="font-medium text-foreground">Choose your session amount</div>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Move part of your main wallet into the AI bot. That is the balance this session will use.
+                      </p>
                     <div className="mt-4 text-sm text-muted-foreground">
-                      Available main wallet balance:{" "}
+                      Available balance:{" "}
                       <span className="font-semibold text-foreground">{formatUsdCurrency(availableBalanceUsd)}</span>
                     </div>
                   </div>
@@ -239,7 +263,7 @@ const BotSetupDialog = ({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="allocationAmount">How much do you want to allocate to the trading bot?</Label>
+                <Label htmlFor="allocationAmount">How much do you want to put into this bot session?</Label>
                 <Input
                   id="allocationAmount"
                   type="number"
@@ -254,13 +278,13 @@ const BotSetupDialog = ({
               <div className="rounded-2xl border border-border bg-background/70 p-4">
                 <div className="grid gap-3 text-sm md:grid-cols-2">
                   <div>
-                    Main wallet after allocation:{" "}
+                    Available balance after allocation:{" "}
                     <span className="font-semibold text-foreground">
                       {allocationValid ? formatUsdCurrency(availableBalanceUsd - allocationValue) : formatUsdCurrency(availableBalanceUsd)}
                     </span>
                   </div>
                   <div>
-                    Bot wallet allocation:{" "}
+                    Bot balance for this session:{" "}
                     <span className="font-semibold text-foreground">
                       {allocationValid ? formatUsdCurrency(allocationValue) : formatUsdCurrency(0)}
                     </span>
@@ -285,7 +309,7 @@ const BotSetupDialog = ({
             </Button>
           ) : (
             <Button type="button" disabled={!allocationValid || isStarting} onClick={() => void handleStart()}>
-              {isStarting ? "Starting..." : "Start Bot"}
+              {isStarting ? "Starting..." : "Start bot"}
             </Button>
           )}
         </DialogFooter>
